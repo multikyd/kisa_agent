@@ -1,10 +1,10 @@
 {
-    "versionCode": 44,
-    "versionName": "1.0.34",
+    "versionCode": 45,
+    "versionName": "1.0.35",
     "apkUrl": "https://raw.githubusercontent.com/multikyd/kisa_agent/main/kisa_agent.apk",
-    "sha256": "1ec5a3fc7d12c467793cf6369771cc234dd5c6f5809a2f7070444b29ef9d4c67",
+    "sha256": "b4c4094b3d6696cefb284cd76a1af56bcf8ecc06c543f189c93834558394069a",
     "releaseNotes": {
-        "ko": "- \uc0c8 \ubc30\ud3ec \uc8fc\uc18c\ub97c \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \uc774\uc804 C4 \uc124\uc815 \ubc31\uc5c5\uc744 \ubcf5\uad6c\ud560 \uc218 \uc788\uace0, \uc11c\ubc84\uac00 \ubcf5\uad6c \uc694\uccad\uc744 \uac70\ubd80\ud558\uba74 \ud654\uba74\uc5d0 \ud45c\uc2dc\ud569\ub2c8\ub2e4.",
-        "en": "- Uses the new update feed, restores older C4 settings backups, and reports rejected restore requests."
+        "ko": "- \ubd81\ub9c8\ud06c \uc800\uc7a5 \uc124\uc815\u00b7\ub85c\uadf8, \uae30\ub2a5 \uc2dc\ud5d8, \ucc28\ub7c9 \uc9c4\ub2e8 \ud654\uba74\uc774 \uc2dc\uc2a4\ud15c \ud45c\uc2dc\uc904\uc5d0 \uac00\ub824\uc9c0\ub358 \ubb38\uc81c\ub97c \uc218\uc815\ud588\uc2b5\ub2c8\ub2e4. C4 \uc124\uc815 \ubcf5\uc6d0 \uc694\uccad\uc774 \uac70\ubd80\ub418\uba74 \uc2e4\ud328 \ud56d\ubaa9\uc744 \ud45c\uc2dc\ud569\ub2c8\ub2e4.",
+        "en": "- Fixed system bars obscuring bookmark settings, bookmark logs, device tests, and vehicle diagnostics. Rejected backup restore requests show the failed parameter."
     }
 }

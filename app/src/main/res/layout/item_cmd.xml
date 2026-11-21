@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingHorizontal="8dp"
+    android:paddingVertical="1dp"
+    android:background="?attr/selectableItemBackground">
+
+    <!-- 1. 물음표 버튼 (왼쪽) -->
+    <ImageButton
+        android:id="@+id/btn_help"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:src="@android:drawable/ic_menu_help"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Help"
+        android:layout_marginEnd="8dp"
+        android:alpha="0.6"/>
+
+    <!-- 2. 명령어 제목 (가중치 1로 남은 공간 모두 차지) -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_cmd_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Command Title"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorOnSecondary"/>
+
+    </LinearLayout>
+
+    <!-- 실행 버튼 (오른쪽 끝) -->
+    <Button
+        android:id="@+id/btn_exec"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="RUN"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:backgroundTint="#4CAF50"/>
+
+</LinearLayout>

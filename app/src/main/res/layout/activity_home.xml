@@ -1,0 +1,421 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1. 최상위 레이아웃을 CoordinatorLayout으로 변경하여 Toolbar와 상호작용하도록 합니다. -->
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
+
+    <!-- 2. AppBarLayout과 Toolbar를 추가합니다. 이곳이 커스텀 액션바 영역이 됩니다. -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@android:color/black"
+            app:titleTextColor="?attr/colorOnPrimary" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- 3. 기존 스크롤뷰를 AppBarLayout 아래에 배치하고, 스크롤 동작을 지정합니다. -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?attr/colorSurface"
+        android:fillViewport="true"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <!-- 기존의 LinearLayout (내용물) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="0dp">
+
+        <!-- 1. 상단 영역: IP 상태 표시 및 재시작 버튼 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:layout_marginBottom="0dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="0dp"
+            android:minHeight="50dp">
+
+        <!-- IP 상태 텍스트 -->
+            <TextView
+                android:id="@+id/tv_ip_status"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_vertical|start"
+                android:text="@string/waiting_connection"
+                android:textColor="?attr/colorOnSecondary"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <!-- 앱 빠른 재시작 버튼 -->
+            <Button
+                android:id="@+id/btn_app_restart_top"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:backgroundTint="#9E9E9E"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="@string/restart_app_title"
+                android:textSize="12sp"
+                app:cornerRadius="5dp"/>
+        </LinearLayout>
+
+        <!-- 2. 메인 기능 버튼들 -->
+        <!-- 브랜치 선택 -->
+        <Button
+            android:id="@+id/btn_branch"
+            android:visibility="visible"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginBottom="0dp"
+            android:backgroundTint="#FFEB3B"
+            android:text="@string/btn_branch_placeholder"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            app:cornerRadius="5dp"/>
+
+        <!-- 모델 선택기 버튼 -->
+        <Button
+            android:id="@+id/btn_model_selector"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginBottom="0dp"
+            android:backgroundTint="#2E7D32"
+            android:text="@string/btn_model_selector"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:cornerRadius="5dp"/>
+
+        <!-- 파라미터 설정 -->
+        <Button
+            android:id="@+id/btn_param"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginBottom="0dp"
+            android:backgroundTint="#2196F3"
+            android:text="@string/btn_params"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:cornerRadius="5dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="0dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_save_params_file"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="2.5dp"
+                android:layout_weight="1"
+                android:backgroundTint="#E0E0E0"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/btn_save_file"
+                android:textSize="13sp"
+                app:cornerRadius="5dp"/>
+
+            <Button
+                android:id="@+id/btn_view_params_file"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="2.5dp"
+                android:layout_weight="1"
+                android:backgroundTint="#E0E0E0"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/btn_view_file"
+                android:textSize="13sp"
+                app:cornerRadius="5dp"/>
+
+            <Button
+                android:id="@+id/btn_load_params_file"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="0dp"
+                android:layout_weight="1"
+                android:backgroundTint="#E0E0E0"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/btn_load_file"
+                android:textSize="13sp"
+                app:cornerRadius="5dp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <Button
+                android:id="@+id/btn_cmd"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="50dp"
+                android:layout_marginEnd="2.5dp"
+                android:backgroundTint="#5C6BC0"
+                android:text="@string/btn_commands"
+                android:textSize="13sp"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                app:cornerRadius="5dp"/>
+            <Button
+                android:id="@+id/btn_reboot_safe"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="50dp"
+                android:layout_marginEnd="2.5dp"
+                android:backgroundTint="#5C6BC0"
+                android:text="@string/btn_reboot_safe"
+                android:textSize="12sp"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                app:cornerRadius="5dp"/>
+            <Button
+                android:id="@+id/btn_reboot_force"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="50dp"
+                android:layout_marginStart="0dp"
+                android:backgroundTint="#D46A50"
+                android:text="@string/btn_reboot_force"
+                android:textSize="12sp"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                app:cornerRadius="5dp"/>
+        </LinearLayout>
+
+        <!-- ★★★ 첫 번째 줄: 플릿 & 파일 탐색기 ★★★ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginBottom="0dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_web_ui"
+            android:visibility="gone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="@string/btn_fleet"
+                android:backgroundTint="#FF9800"
+                android:layout_marginEnd="2.5dp"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                app:cornerRadius="5dp"/>
+
+            <Button
+                android:id="@+id/btn_file_explorer"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="@string/btn_file_explorer"
+                android:backgroundTint="#BBDEFB"
+                android:layout_marginStart="2.5dp"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                app:cornerRadius="5dp"/>
+        </LinearLayout>
+
+        <!-- ★★★ 두 번째 줄: 주행 영상 & 스크린 녹화 ★★★ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginBottom="0dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_drive_logs"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="@string/btn_drive_logs_hevc"
+                android:backgroundTint="#4CAF50"
+                android:layout_marginEnd="2.5dp"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                app:cornerRadius="5dp"/>
+
+            <Button
+                android:id="@+id/btn_bookmarks"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="@string/btn_bookmark_logs"
+                android:backgroundTint="#7D5E57"
+                android:layout_marginStart="2.5dp"
+                android:textSize="14sp"
+                android:maxLines="1"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="14sp"
+                app:autoSizeStepGranularity="1sp"
+                android:textStyle="bold"
+                app:cornerRadius="5dp"/>
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <Button android:id="@+id/btn_camera_trial" android:layout_width="0dp" android:layout_weight="3" android:layout_height="56dp" android:text="카메라 시험 · 브레이크등 / 신호등" android:textSize="14sp" android:backgroundTint="#00695C" app:cornerRadius="5dp" />
+            <Button android:id="@+id/btn_device_tests" android:layout_width="0dp" android:layout_weight="1" android:layout_height="56dp" android:layout_marginStart="5dp" android:text="시험" android:textSize="16sp" android:backgroundTint="#455A64" app:cornerRadius="5dp" />
+        </LinearLayout>
+        <Button android:id="@+id/btn_vehicle_diagnostics" android:layout_width="match_parent" android:layout_height="52dp" android:text="아이오닉 5 진단 · C4 / OBD" android:textSize="16sp" android:backgroundTint="#455A64" app:cornerRadius="5dp" />
+        <!-- 화면 녹화 (On/Off) -->
+        <Button
+            android:id="@+id/btn_record"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginBottom="0dp"
+            android:backgroundTint="#607D8B"
+            android:text="@string/screen_record_off"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:cornerRadius="5dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginBottom="0dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_fingerprint"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="@string/btn_fingerprint"
+                android:backgroundTint="#E6D3C3"
+                android:layout_marginEnd="2.5dp"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                app:cornerRadius="5dp"/>
+
+            <Button
+                android:id="@+id/btn_tmux_log"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="@string/btn_tmux_log"
+                android:backgroundTint="#4A9B8F"
+                android:layout_marginStart="2.5dp"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                app:cornerRadius="5dp"/>
+
+        </LinearLayout>
+
+        <!-- Git 관리 버튼 그룹 (가로 배치) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="0dp"
+            android:orientation="horizontal">
+
+            <!-- Git Pull & Reboot -->
+            <Button
+                android:id="@+id/btn_git_pull"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_marginEnd="2.5dp"
+                android:layout_weight="1"
+                android:backgroundTint="#E0E0E0"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/btn_git_pull"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                app:cornerRadius="5dp"/>
+
+            <!-- Git Restore -->
+            <Button
+                android:id="@+id/btn_git_restore"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_marginStart="2.5dp"
+                android:layout_weight="1"
+                android:backgroundTint="#E0E0E0"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/btn_git_restore"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                app:cornerRadius="5dp"/>
+            <!-- Terminal -->
+            <Button
+                android:id="@+id/btn_terminal"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_marginStart="2.5dp"
+                android:layout_weight="1"
+                android:backgroundTint="#E0E0E0"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/btn_terminal"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                app:cornerRadius="5dp"/>
+
+        </LinearLayout>
+
+        <!-- 구분선 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="2dp"
+            android:background="#CCCCCC" />
+
+        <!-- 5. 콘솔 로그 영역 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="0dp"
+            android:text="@string/console_log"
+            android:textColor="?attr/colorOnSecondary"
+            android:textStyle="bold" />
+        <ScrollView
+            android:id="@+id/scroll_view_console"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:layout_marginTop="0dp"
+            android:background="?attr/colorSurface"
+            android:fillViewport="true">
+
+            <TextView
+                android:id="@+id/tv_console"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:padding="5dp"
+                android:text=""
+                android:textColor="?attr/colorOnSecondary"
+                android:textSize="11sp"
+                android:background="?attr/colorSurface"/>
+        </ScrollView>
+    </LinearLayout>
+</ScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

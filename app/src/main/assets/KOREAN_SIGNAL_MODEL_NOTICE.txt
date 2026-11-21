@@ -1,0 +1,10 @@
+Korean traffic-signal experimental model
+Original source: https://github.com/standard-jh/traffic_light_detector
+Original checkpoint: ml_model/final_korean_cam.pt
+Labels: green, left, red, yellow
+Converted locally to ONNX opset 17, input images [1,3,640,640] RGB float 0..1, output [1,8,8400].
+Preprocessing: aspect-preserving resize plus 114-value letterbox; confidence 0.35, per-class NMS IoU 0.45.
+The repository did not show an explicit distribution license when checked. This APK is for private evaluation; do not assume permission for public redistribution.
+The author notes yellow-data shortages and train/validation/test splitting problems. No accuracy claim is made here.
+No brake-state model, lane applicability model, C4 transmission or vehicle-control integration is included.
+Runtime: com.microsoft.onnxruntime:onnxruntime-android:1.23.2, MIT license; see ONNXRUNTIME_LICENSE.txt.

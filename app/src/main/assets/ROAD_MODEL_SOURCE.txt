@@ -1,0 +1,6 @@
+EfficientDet-Lite0 COCO pretrained object localization model
+Source: https://storage.googleapis.com/download.tensorflow.org/models/tflite/task_library/object_detection/android/lite-model_efficientdet_lite0_detection_metadata_1.tflite
+Official example: https://github.com/tensorflow/examples/tree/master/lite/examples/object_detection/android
+SHA256: 2e04c53bfeac0ac2a30c057c7e2a777594ce39baaac35a92f74fb1e8c4fc4e0b
+Model locates COCO objects; no brake ON/OFF or traffic signal color-state class.
+MediaPipe runtime: com.google.mediapipe:tasks-vision:1.1.1 (Apache 2.0). See MEDIAPIPE_LICENSE.txt.

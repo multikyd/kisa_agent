@@ -1,0 +1,12 @@
+M-LSD: Copyright 2021-present NAVER Corp. Apache License 2.0.
+Original: https://github.com/navervision/mlsd
+ONNX conversion: PINTO0309/PINTO_model_zoo, 119_M-LSD (Apache-2.0).
+Conversion archive: https://s3.ap-northeast-2.wasabisys.com/pinto-model-zoo/119_M-LSD/resources.tar.gz
+Archive member: saved_model_320x320_tiny/model_float32.onnx
+SHA256: 9e2c3f6811458135b05ed416df75b29f2fda978fa58e3e5f55005b07f61186a5
+Unmodified model. Input [1,320,320,4] B,G,R,1 float32, range 0..255.
+Output centers [1,200,2] y,x; scores [1,200]; displacement map [1,160,160,4].
+The app adds original Java decoding and white transverse band filtering.
+This is a generic line segment model, NOT a trained stop-line classifier.
+White-band candidates can include crosswalks, dashboard features and shadows.
+No confirmed lane assignment, brake state, or vehicle-control output.

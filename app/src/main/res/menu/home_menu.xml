@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- 1. 나이트 모드 전환 스위치 (항상 표시) -->
+    <item
+        android:id="@+id/action_night_mode"
+        android:title="@string/action_dark_mode"
+        app:actionLayout="@layout/switch_item"
+        app:showAsAction="always" />
+
+    <!-- 2. '앱 정보' 메뉴 아이템 (점 세 개 안에 표시) -->
+    <item
+        android:id="@+id/action_app_info"
+        android:title="@string/action_app_info"
+        app:showAsAction="never" />
+    <item android:id="@+id/action_manual_connect"
+        android:title="@string/action_manual_connect" app:showAsAction="never" />
+</menu>

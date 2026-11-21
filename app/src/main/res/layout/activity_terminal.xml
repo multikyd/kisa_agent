@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:fitsSystemWindows="true"
+    tools:context=".TerminalActivity">
+
+    <!-- ★★★ [신설] 화면에 보이지 않는, 실제 입력을 받는 숨겨진 EditText ★★★ -->
+    <EditText
+        android:id="@+id/et_hidden_input"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:background="@android:color/transparent"
+        android:cursorVisible="false"
+        android:inputType="textNoSuggestions"
+        android:imeOptions="actionSend|flagNoExtractUi"
+        android:textColor="@android:color/transparent" />
+
+    <HorizontalScrollView
+        android:id="@+id/terminal_tools"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:scrollbars="none">
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="match_parent" android:orientation="horizontal">
+            <Button android:id="@+id/terminal_font_smaller" android:layout_width="56dp" android:layout_height="match_parent" android:text="A−" android:contentDescription="Smaller terminal text" />
+            <Button android:id="@+id/terminal_font_larger" android:layout_width="56dp" android:layout_height="match_parent" android:text="A+" android:contentDescription="Larger terminal text" />
+            <Button android:id="@+id/terminal_fit" android:layout_width="72dp" android:layout_height="match_parent" android:text="맞춤" android:contentDescription="Fit 100 columns or scroll horizontally" />
+            <Button android:id="@+id/terminal_ctrl_c" android:layout_width="80dp" android:layout_height="match_parent" android:text="Ctrl-C" />
+            <Button android:id="@+id/terminal_escape" android:layout_width="64dp" android:layout_height="match_parent" android:text="Esc" />
+            <Button android:id="@+id/terminal_tab" android:layout_width="64dp" android:layout_height="match_parent" android:text="Tab" />
+            <Button android:id="@+id/terminal_up" android:layout_width="56dp" android:layout_height="match_parent" android:text="↑" />
+            <Button android:id="@+id/terminal_down" android:layout_width="56dp" android:layout_height="match_parent" android:text="↓" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- The server PTY is 100 columns; scrolling preserves its screen layout. -->
+    <ScrollView
+        android:id="@+id/terminal_scroll_view"
+        android:layout_below="@id/terminal_tools"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <HorizontalScrollView
+            android:id="@+id/terminal_horizontal_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fillViewport="true"
+            android:scrollbars="horizontal">
+        <TextView
+            android:id="@+id/tv_terminal_log"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:textColor="#CCCCCC"
+            android:textSize="12sp"
+            android:typeface="monospace"/>
+        </HorizontalScrollView>
+    </ScrollView>
+
+</RelativeLayout>

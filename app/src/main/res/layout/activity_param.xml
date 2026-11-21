@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/colorSurface"
+    android:paddingTop="25dp"> <!-- 전체적으로 상단 여백 추가 -->
+
+    <!-- ★ 추가됨: 상단 제목 텍스트 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Parameter Settings"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="?attr/colorOnSecondary"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:layout_marginBottom="12dp"/> <!-- 그룹 버튼과의 간격 -->
+
+    <!-- 차량 선택 버튼 (가로로 긴 형태) -->
+    <Button
+        android:id="@+id/btn_select_car"
+        android:layout_width="match_parent"
+        android:layout_height="45dp"
+        android:text="@string/select_car_placeholder"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="?attr/colorOnPrimary"
+        android:backgroundTint="#2196F3"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
+        android:layout_marginBottom="12dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"/>
+
+    <Button
+        android:id="@+id/btn_bookmark_server"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginHorizontal="4dp"
+        android:text="@string/bookmark_storage_settings"
+        android:textAllCaps="false"
+        android:textSize="18sp" />
+
+    <!-- 상단: 그룹 필터 버튼 영역 (좌우 스크롤 가능) -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="12dp"
+        android:clipToPadding="false"> <!-- 스크롤 시 끝부분 잘림 방지 -->
+
+        <LinearLayout
+            android:id="@+id/layout_filter_groups"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- 자바 코드에서 버튼들이 여기에 추가됩니다 -->
+
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- 구분선 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#DDDDDD"/>
+
+    <!-- 하단: 파라미터 리스트 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_params"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingTop="4dp"
+        android:paddingStart="0dp"
+        android:paddingEnd="0dp"
+        android:paddingBottom="50dp"
+        android:clipToPadding="false"/>
+
+</LinearLayout>

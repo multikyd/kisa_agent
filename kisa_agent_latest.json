@@ -1,10 +1,10 @@
 {
-    "versionCode": 45,
-    "versionName": "1.0.35",
+    "versionCode": 46,
+    "versionName": "1.0.36",
     "apkUrl": "https://raw.githubusercontent.com/multikyd/kisa_agent/main/kisa_agent.apk",
-    "sha256": "b4c4094b3d6696cefb284cd76a1af56bcf8ecc06c543f189c93834558394069a",
+    "sha256": "41b44edaac8bcd9dbdd094879d39dac94c433d3e3f78b7251ca03b866688d365",
     "releaseNotes": {
-        "ko": "- \ubd81\ub9c8\ud06c \uc800\uc7a5 \uc124\uc815\u00b7\ub85c\uadf8, \uae30\ub2a5 \uc2dc\ud5d8, \ucc28\ub7c9 \uc9c4\ub2e8 \ud654\uba74\uc774 \uc2dc\uc2a4\ud15c \ud45c\uc2dc\uc904\uc5d0 \uac00\ub824\uc9c0\ub358 \ubb38\uc81c\ub97c \uc218\uc815\ud588\uc2b5\ub2c8\ub2e4. C4 \uc124\uc815 \ubcf5\uc6d0 \uc694\uccad\uc774 \uac70\ubd80\ub418\uba74 \uc2e4\ud328 \ud56d\ubaa9\uc744 \ud45c\uc2dc\ud569\ub2c8\ub2e4.",
-        "en": "- Fixed system bars obscuring bookmark settings, bookmark logs, device tests, and vehicle diagnostics. Rejected backup restore requests show the failed parameter."
+        "ko": "- \ucc28\ub7c9 \uc9c4\ub2e8\uc5d0 \ubc30\ud130\ub9ac \uc0c1\uc138\uac12\uacfc \uc140\ubcc4 \uc804\uc555\uc744 \ud45c\uc2dc\ud569\ub2c8\ub2e4. \uc804\uccb4 \uc9c4\ub2e8 RAW \uc218\uc9d1\uc73c\ub85c \ucc28\ub7c9\uc774 \uc9c0\uc6d0\ud558\ub294 \ud45c\uc900 PID, \uace0\uc7a5 \ucf54\ub4dc, \ubc30\ud130\ub9ac\u00b7\uc140 \uc804\uc555 \uc751\ub2f5\uc744 \uc218\uc9d1\ud558\uace0 \ud654\uba74 \ud655\uc778\u00b7\ud30c\uc77c \uc800\uc7a5\uc744 \uc9c0\uc6d0\ud569\ub2c8\ub2e4.",
+        "en": "- Display detailed battery diagnostics and individual cell voltages. Collect all advertised standard OBD PIDs, trouble codes, and battery/cell replies with RAW viewing and file export."
     }
 }

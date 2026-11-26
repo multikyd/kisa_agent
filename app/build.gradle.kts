@@ -27,8 +27,8 @@ android {
         minSdk = 26
         ndk { abiFilters += listOf("arm64-v8a") }
         targetSdk = 36
-        versionCode = 45
-        versionName = "1.0.35"
+        versionCode = 46
+        versionName = "1.0.36"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -147,8 +147,8 @@ tasks.register("publishKisaAgent") {
             "apkUrl" to "https://raw.githubusercontent.com/multikyd/kisa_agent/main/kisa_agent.apk",
             "sha256" to sha256,
             "releaseNotes" to mapOf(
-                "ko" to "- 북마크 저장 설정·로그, 기능 시험, 차량 진단 화면이 시스템 표시줄에 가려지던 문제를 수정했습니다. C4 설정 복원 요청이 거부되면 실패 항목을 표시합니다.",
-                "en" to "- Fixed system bars obscuring bookmark settings, bookmark logs, device tests, and vehicle diagnostics. Rejected backup restore requests show the failed parameter."
+                "ko" to "- 차량 진단에 배터리 상세값과 셀별 전압을 표시합니다. 전체 진단 RAW 수집으로 차량이 지원하는 표준 PID, 고장 코드, 배터리·셀 전압 응답을 수집하고 화면 확인·파일 저장을 지원합니다.",
+                "en" to "- Display detailed battery diagnostics and individual cell voltages. Collect all advertised standard OBD PIDs, trouble codes, and battery/cell replies with RAW viewing and file export."
             )
         )
         val backup = layout.buildDirectory.dir("publication-backup").get().asFile.apply { mkdirs() }

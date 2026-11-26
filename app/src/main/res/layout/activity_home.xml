@@ -283,7 +283,7 @@
             <Button android:id="@+id/btn_camera_trial" android:layout_width="0dp" android:layout_weight="3" android:layout_height="56dp" android:text="카메라 시험 · 브레이크등 / 신호등" android:textSize="14sp" android:backgroundTint="#00695C" app:cornerRadius="5dp" />
             <Button android:id="@+id/btn_device_tests" android:layout_width="0dp" android:layout_weight="1" android:layout_height="56dp" android:layout_marginStart="5dp" android:text="시험" android:textSize="16sp" android:backgroundTint="#455A64" app:cornerRadius="5dp" />
         </LinearLayout>
-        <Button android:id="@+id/btn_vehicle_diagnostics" android:layout_width="match_parent" android:layout_height="52dp" android:text="아이오닉 5 진단 · C4 / OBD" android:textSize="16sp" android:backgroundTint="#455A64" app:cornerRadius="5dp" />
+        <Button android:id="@+id/btn_vehicle_diagnostics" android:layout_width="match_parent" android:layout_height="52dp" android:text="차량 진단" android:textSize="16sp" android:backgroundTint="#455A64" app:cornerRadius="5dp" />
         <!-- 화면 녹화 (On/Off) -->
         <Button
             android:id="@+id/btn_record"

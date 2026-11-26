@@ -8,11 +8,12 @@ import java.util.regex.*;
 final class Elm327Protocol {
     private static final Set<String> ALLOWED = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "ATZ", "ATI", "ATE0", "ATL0", "ATH1", "ATS1", "ATD0", "ATSP6", "ATCAF1", "ATCFC1", "ATSTFF",
-            "ATDP", "ATRV", "ATSH7DF", "ATSH7E4", "ATCRA", "ATCRA7EC", "0100", "03", "07", "0A", "220101", "220105")));
+            "ATDP", "ATRV", "ATSH7DF", "ATSH7E4", "ATCRA", "ATCRA7EC", "03", "07", "0A")));
 
     static String command(String input) {
         String value = input == null ? "" : input.toUpperCase(Locale.ROOT).replaceAll("\\s", "");
-        if (!ALLOWED.contains(value)) throw new IllegalArgumentException("Read-only command not allowed");
+        if (!ALLOWED.contains(value) && !ObdVehicleData.allows(value))
+            throw new IllegalArgumentException("Read-only command not allowed");
         return value;
     }
 
@@ -45,42 +46,54 @@ final class Elm327Protocol {
     }
 
     static Result dtcs(String raw, int requestMode) {
-        if (raw == null || raw.length() > 65536 || (requestMode != 3 && requestMode != 7 && requestMode != 10))
+        if (requestMode != 3 && requestMode != 7 && requestMode != 10)
             throw new IllegalArgumentException("Invalid OBD response");
         Result result = new Result();
+        result.incomplete = readPayloads(raw, requestMode + 0x40,
+                (ecu, payload) -> decode(ecu, payload, requestMode, result)) || result.incomplete;
+        return result;
+    }
+
+    interface PayloadReader {
+        void accept(String ecu, byte[] payload);
+    }
+
+    static boolean readPayloads(String raw, int positiveService, PayloadReader reader) {
+        if (raw == null || raw.length() > 65536)
+            throw new IllegalArgumentException("Invalid OBD response");
+        boolean incomplete = false;
         Map<String, Frame> frames = new LinkedHashMap<>();
         for (String line : raw.toUpperCase(Locale.ROOT).split("[\\r\\n]+")) {
             String compact = line.replaceAll("\\s", "").replace(">", "");
             if (!compact.matches("7E[8-F][0-9A-F]+")) continue;
             String ecu = compact.substring(0, 3), body = compact.substring(3);
-            if (body.length() < 2 || (body.length() & 1) != 0) { result.incomplete = true; continue; }
+            if (body.length() < 2 || (body.length() & 1) != 0) { incomplete = true; continue; }
             byte[] data = new byte[body.length()/2];
             for (int i=0; i<data.length; i++) data[i]=(byte)Integer.parseInt(body.substring(i*2,i*2+2),16);
             int first=data[0]&255, type=first>>4;
             if (type == 0) {
                 int length=first&15;
-                if (length==0 || length>data.length-1) { result.incomplete=true; continue; }
-                decode(ecu,Arrays.copyOfRange(data,1,1+length),requestMode,result);
+                if (length==0 || length>data.length-1) { incomplete=true; continue; }
+                reader.accept(ecu, Arrays.copyOfRange(data,1,1+length));
             } else if (type == 1) {
-                if (data.length<3) { result.incomplete=true; continue; }
+                if (data.length<3) { incomplete=true; continue; }
                 Frame frame=new Frame(); frame.length=((first&15)<<8)|(data[1]&255);
-                if (frame.length<=data.length-2 || frame.length>4095) { result.incomplete=true; continue; }
-                if (frames.containsKey(ecu)) result.incomplete=true;
+                if (frame.length<=data.length-2 || frame.length>4095) { incomplete=true; continue; }
+                if (frames.containsKey(ecu)) incomplete=true;
                 frame.bytes.write(data,2,data.length-2);frames.put(ecu,frame);
             } else if (type == 2) {
                 Frame frame=frames.get(ecu);
                 if(frame==null || frame.invalid || (first&15)!=frame.next) {
-                    if(frame!=null)frame.invalid=true;result.incomplete=true;continue;
+                    if(frame!=null)frame.invalid=true;incomplete=true;continue;
                 }
                 frame.next=(frame.next+1)&15;
                 frame.bytes.write(data,1,Math.min(data.length-1,frame.length-frame.bytes.size()));
-                if(frame.bytes.size()==frame.length){decode(ecu,frame.bytes.toByteArray(),requestMode,result);frames.remove(ecu);}
-            } else if (first == requestMode+0x40) {
-                decode(ecu,data,requestMode,result);
+                if(frame.bytes.size()==frame.length){reader.accept(ecu, frame.bytes.toByteArray());frames.remove(ecu);}
+            } else if (first == positiveService) {
+                reader.accept(ecu, data);
             }
         }
-        if(!frames.isEmpty())result.incomplete=true;
-        return result;
+        return incomplete || !frames.isEmpty();
     }
 
     private static void decode(String ecu,byte[] payload,int mode,Result result) {

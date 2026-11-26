@@ -2,136 +2,438 @@ package com.kisapilot.kisaagent;
 
 import android.Manifest;
 import android.app.AlertDialog;
-import android.bluetooth.*;
-import android.content.*;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.os.*;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
-import android.widget.*;
+import android.view.View;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
-import org.json.*;
-import java.io.*;
-import java.net.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.*;
+import java.text.DateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-/** Passive C4 monitor plus user-triggered, bounded read-only ELM327 diagnostics. */
 public final class VehicleDiagnosticsActivity extends AppCompatActivity {
-    private final Handler main=new Handler(Looper.getMainLooper());
-    private final ExecutorService c4Worker=Executors.newSingleThreadExecutor(),obdWorker=Executors.newSingleThreadExecutor();
-    private final StringBuilder trace=new StringBuilder();
-    private TextView c4Text,adapterText,dtcText,bmsText;
-    private Button connect,dtc,bms;
-    private volatile boolean active,c4Busy,obdBusy;
-    private volatile Elm327Client elm;
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final StringBuilder trace = new StringBuilder();
+    private Elm327Client client;
+    private boolean busy;
     private int generation;
-    private String c4Report="C4 미연결";
-    private final Runnable poll=new Runnable(){public void run(){if(!active)return;refreshC4();main.postDelayed(this,2000);}};
+    private Button connectButton, standardButton, dtcButton, batteryButton, cellsButton;
+    private TextView connection, standardResult, dtcResult, batteryResult, cellsResult;
 
-    @Override protected void onCreate(Bundle state){
-        super.onCreate(state);ScrollView scroll=new ScrollView(this);LinearLayout root=new LinearLayout(this);root.setOrientation(1);
-        int p=dp(16);root.setPadding(p,p,p,p);scroll.addView(root);setContentView(scroll);
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        int padding = dp(16);
+        root.setPadding(padding, padding, padding, padding);
+        scroll.addView(root);
+        setContentView(scroll);
         ScreenInsets.apply(scroll);
-        button(root,"‹ 돌아가기",()->finish());text(root,"아이오닉 5 진단",25);
-        text(root,"2024 더 뉴 아이오닉 5 · 84kWh · 후륜 싱글모터",18);
-        text(root,"조회 전용 · 고장코드 삭제, ECU 초기화·코딩·차량 제어 기능은 포함하지 않습니다.",15);
-        text(root,"C4 차량·통신 상태",22);c4Text=text(root,"C4 연결 확인 중…",16);
-        text(root,"ELM327 블루투스 진단",22);
-        text(root,"일반 블루투스(SPP) V1.5 어댑터용입니다. 폰 설정에서 먼저 페어링하세요. 다른 OBD 앱의 연결은 종료해 주세요.",15);
-        button(root,"블루투스 설정",()->startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)));
-        connect=button(root,"어댑터 연결·기본 조회",this::chooseAdapter);
-        button(root,"연결 종료 / 조회 중단",this::disconnect);
-        adapterText=text(root,"연결 안 됨",16);
-        dtc=button(root,"고장코드 조회 (저장·대기·영구)",()->runObd(false));dtc.setEnabled(false);
-        dtcText=text(root,"미조회 · NO DATA는 고장 없음이라는 뜻이 아닙니다.",16);
-        bms=button(root,"배터리 ECU 응답 수집",()->runObd(true));bms.setEnabled(false);
-        bmsText=text(root,"84kWh 차량의 BMS 해석은 실차 응답 검증 전입니다. SOC·SOH·셀 전압을 임의 계산하지 않고 조회 원문을 수집합니다.",16);
-        text(root,"OBD 조회는 정차 중 사용하세요. 조회 결과는 응답한 ECU 범위이며, 차량 전체 정비 진단을 대신하지 않습니다.",15);
-        button(root,"진단 결과 복사",()->((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("Kisa Ioniq5 diagnostics",report())));
-        button(root,"진단 결과 파일 저장",this::saveReport);
-    }
-    private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
-    private TextView text(LinearLayout parent,String value,int size){TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setPadding(0,dp(7),0,dp(7));parent.addView(t);return t;}
-    private Button button(LinearLayout parent,String value,Runnable action){Button b=new Button(this);b.setText(value);parent.addView(b);b.setOnClickListener(v->action.run());return b;}
-    @Override protected void onResume(){super.onResume();active=true;main.removeCallbacks(poll);main.post(poll);}
-    @Override protected void onPause(){active=false;main.removeCallbacks(poll);disconnect();super.onPause();}
-    @Override protected void onDestroy(){c4Worker.shutdownNow();obdWorker.shutdownNow();super.onDestroy();}
 
-    private void refreshC4(){
-        if(c4Busy)return;String host;try{host=DeviceAddress.normalize(HomeActivity.serverIp);}catch(Exception e){c4Report="C4 미연결 · OBD 진단은 별도로 사용할 수 있습니다.";c4Text.setText(c4Report);return;}
-        c4Busy=true;c4Worker.execute(()->{
-            String message;HttpURLConnection c=null;
-            try{c=(HttpURLConnection)new URL("http://"+host+":5005/diagnostics/vehicle").openConnection();c.setConnectTimeout(2500);c.setReadTimeout(3000);int code=c.getResponseCode();
-                if(code==404)message="C4 진단 API 없음 · C4 코드 업데이트가 필요합니다.";
-                else if(code!=200)message="C4 차량 데이터 대기 (HTTP "+code+")";
-                else try(InputStream in=c.getInputStream()){ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] buf=new byte[4096];int n;while((n=in.read(buf))!=-1){if(out.size()+n>131072)throw new IOException("진단 응답 초과");out.write(buf,0,n);}JSONObject j=new JSONObject(out.toString("UTF-8"));message=formatC4(j);}
-            }catch(Exception e){message="C4 조회 실패 · "+e.getClass().getSimpleName();}finally{if(c!=null)c.disconnect();c4Busy=false;}
-            String result=message;main.post(()->{if(active&&host.equals(HomeActivity.serverIp)){c4Report=result;c4Text.setText(result);}});
+        button(root, "‹ 돌아가기", this::finish);
+        text(root, "차량 진단", 25);
+        button(root, "블루투스 설정", () -> startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)));
+        connectButton = button(root, "OBD 연결", this::chooseDevice);
+        button(root, "연결 종료", this::disconnect);
+        connection = text(root, "연결 안 됨", 16);
+
+        standardButton = button(root, "차량 데이터 조회", () -> runQuery(standardResult, this::readStandard));
+        standardResult = text(root, "", 16);
+        dtcButton = button(root, "고장 코드 조회", () -> runQuery(dtcResult, this::readDtcs));
+        dtcResult = text(root, "", 16);
+        batteryButton = button(root, "배터리 상세 조회", () -> runQuery(batteryResult, this::readBattery));
+        batteryResult = text(root, "", 16);
+        cellsButton = button(root, "", this::toggleCells);
+        cellsResult = text(root, "", 16);
+        resetResults();
+
+        button(root, "진단 결과 복사", () -> ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE))
+                .setPrimaryClip(ClipData.newPlainText("차량 진단", report())));
+        button(root, "진단 결과 파일 저장", this::saveReport);
+        updateButtons();
+    }
+
+    @Override protected void onPause() {
+        disconnect();
+        super.onPause();
+    }
+
+    @Override protected void onDestroy() {
+        worker.shutdownNow();
+        super.onDestroy();
+    }
+
+    private int dp(int size) {
+        return Math.round(size * getResources().getDisplayMetrics().density);
+    }
+
+    private TextView text(LinearLayout parent, String value, int size) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setPadding(0, dp(7), 0, dp(7));
+        parent.addView(view);
+        return view;
+    }
+
+    private Button button(LinearLayout parent, String value, Runnable action) {
+        Button view = new Button(this);
+        view.setText(value);
+        parent.addView(view);
+        view.setOnClickListener(v -> action.run());
+        return view;
+    }
+
+    private void chooseDevice() {
+        if (busy) return;
+        if (Build.VERSION.SDK_INT >= 31
+                && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 701);
+            return;
+        }
+        try {
+            BluetoothManager manager = getSystemService(BluetoothManager.class);
+            BluetoothAdapter adapter = manager == null ? null : manager.getAdapter();
+            if (adapter == null || !adapter.isEnabled()) {
+                connection.setText("블루투스를 켜 주세요.");
+                return;
+            }
+            List<BluetoothDevice> devices = new ArrayList<>();
+            List<String> names = new ArrayList<>();
+            for (BluetoothDevice device : adapter.getBondedDevices()) {
+                if (device.getType() == BluetoothDevice.DEVICE_TYPE_LE) continue;
+                devices.add(device);
+                String address = device.getAddress();
+                String name = device.getName();
+                names.add((name == null ? "이름 없음" : name) + " · " + address.substring(address.length() - 5));
+            }
+            if (devices.isEmpty()) {
+                connection.setText("블루투스 설정에서 진단 장치를 먼저 페어링해 주세요.");
+                return;
+            }
+            new AlertDialog.Builder(this).setTitle("연결할 기기 선택")
+                    .setItems(names.toArray(new String[0]), (dialog, index) -> connect(devices.get(index)))
+                    .setNegativeButton("취소", null).show();
+        } catch (SecurityException e) {
+            connection.setText("근처 기기 연결 권한이 필요합니다.");
+        }
+    }
+
+    @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(request, permissions, results);
+        if (request == 701 && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) chooseDevice();
+    }
+
+    private void connect(BluetoothDevice device) {
+        disconnect();
+        resetResults();
+        Elm327Client session = new Elm327Client();
+        client = session;
+        int token = generation;
+        busy = true;
+        updateButtons();
+        connection.setText("연결 중…");
+        worker.execute(() -> {
+            synchronized (trace) {
+                trace.setLength(0);
+            }
+            try {
+                session.connect(device);
+                session.query("ATZ");
+                for (String command : new String[]{"ATE0", "ATL0", "ATH1", "ATS1", "ATD0", "ATSP6",
+                        "ATCAF1", "ATCFC1", "ATSTFF"}) setup(session, command);
+                done(token, () -> connection.setText("OBD 연결됨"));
+            } catch (Exception e) {
+                session.close();
+                done(token, () -> connection.setText("연결 실패 · " + e.getMessage()));
+            } finally {
+                finishQuery(token);
+            }
         });
     }
-    private static String show(JSONObject j,String key){return j==null||j.isNull(key)||!j.has(key)?"미수신":String.valueOf(j.opt(key));}
-    private static String formatC4(JSONObject j)throws JSONException{
-        StringBuilder s=new StringBuilder();JSONObject detected=j.optJSONObject("detected"),v=j.optJSONObject("vehicle");
-        s.append("인식 차량: ").append(show(detected,"fingerprint")).append("\n차종 일치: ").append(show(detected,"expected_model"));
-        if(v==null)s.append("\n차량 신호 미수신·오래됨 (정상 판정 불가)");
-        else s.append("\n속도: ").append(show(v,"speed_kph")).append(" km/h · 기어: ").append(show(v,"gear"))
-            .append("\nCAN 유효: ").append(show(v,"canValid")).append(" · 타임아웃: ").append(show(v,"canTimeout"))
-            .append("\nCAN 오류 카운터: ").append(show(v,"canErrorCounter"))
-            .append("\n브레이크: ").append(show(v,"brakePressed")).append(" · 가속페달: ").append(show(v,"gasPressed"))
-            .append("\n핸들각: ").append(show(v,"steeringAngleDeg")).append("°")
-            .append("\n조향 임시/영구 오류: ").append(show(v,"steerFaultTemporary")).append(" / ").append(show(v,"steerFaultPermanent"))
-            .append("\nACC 오류: ").append(show(v,"accFaulted"));
-        JSONObject streams=j.optJSONObject("streams");if(streams!=null)for(String name:new String[]{"carState","pandaStates","carControl"}){JSONObject h=streams.optJSONObject(name);s.append("\n").append(name).append(": ").append(h!=null&&h.optBoolean("fresh")?"수신 중":h!=null&&h.optBoolean("alive")&&!h.optBoolean("valid")?"유효성 검사 실패":"미수신·오래됨");}
-        JSONArray pandas=j.optJSONArray("pandas");if(pandas!=null)for(int i=0;i<pandas.length();i++){JSONObject p=pandas.getJSONObject(i);s.append("\nPanda ").append(i).append(": ").append(show(p,"type")).append(" · 공급전압 ").append(show(p,"supply_voltage_v")).append(" V")
-            .append("\n송신 차단 누적: ").append(show(p,"safetyTxBlocked")).append(" · Panda 오류: ").append(show(p,"faults"));
-            JSONArray buses=p.optJSONArray("buses");if(buses!=null)for(int b=0;b<buses.length();b++){JSONObject bus=buses.getJSONObject(b);s.append("\n  CAN ").append(show(bus,"index")).append(" · busOff ").append(show(bus,"busOff")).append(" · 오류 ").append(show(bus,"totalErrorCnt"));}}
-        s.append("\n※ C4/Panda 상태이며 차량 ECU 고장코드(DTC) 조회 결과가 아닙니다.");return s.toString();
+
+    private String query(Elm327Client session, String command) throws IOException {
+        String response = session.query(command);
+        String entry = "[" + command + "]\n" + response.trim() + "\n";
+        synchronized (trace) {
+            while (trace.length() + entry.length() > 131072) {
+                int next = trace.indexOf("\n[");
+                trace.delete(0, next < 0 ? trace.length() : next + 1);
+            }
+            trace.append(entry);
+        }
+        return response;
     }
 
-    private void chooseAdapter(){
-        if(obdBusy)return;
-        if(Build.VERSION.SDK_INT>=31&&checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT},701);return;}
-        try{BluetoothManager manager=(BluetoothManager)getSystemService(BLUETOOTH_SERVICE);BluetoothAdapter adapter=manager==null?null:manager.getAdapter();if(adapter==null||!adapter.isEnabled()){adapterText.setText("블루투스를 켠 뒤 어댑터를 페어링해 주세요.");return;}
-            ArrayList<BluetoothDevice> devices=new ArrayList<>();for(BluetoothDevice d:adapter.getBondedDevices())if(d.getType()!=BluetoothDevice.DEVICE_TYPE_LE)devices.add(d);
-            if(devices.isEmpty()){adapterText.setText("일반 블루투스 페어링 장치가 없습니다. BLE 전용 장치는 이 연결 방식으로 사용할 수 없습니다.");return;}
-            String[] names=new String[devices.size()];for(int i=0;i<names.length;i++){BluetoothDevice d=devices.get(i);String address=d.getAddress();names[i]=(d.getName()==null?"이름 없음":d.getName())+" · "+address.substring(Math.max(0,address.length()-5));}
-            new AlertDialog.Builder(this).setTitle("ELM327 / OBD 어댑터 선택").setItems(names,(dialog,index)->connect(devices.get(index))).setNegativeButton("취소",null).show();
-        }catch(SecurityException e){adapterText.setText("근처 기기 연결 권한이 필요합니다.");}
+    private void setup(Elm327Client session, String command) throws IOException {
+        if (!session.query(command).toUpperCase(Locale.ROOT).contains("OK")) {
+            throw new IOException("진단 장치 설정 실패 (" + command + ")");
+        }
     }
-    @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){super.onRequestPermissionsResult(request,permissions,results);if(request==701&&results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED)chooseAdapter();}
-    private void connect(BluetoothDevice device){
-        disconnect();Elm327Client client=new Elm327Client();elm=client;int token=generation;obdBusy=true;buttons();adapterText.setText("연결·필수 명령 확인 중…");
-        obdWorker.execute(()->{try{
-            client.connect(device);String version=query(client,"ATZ");
-            for(String command:new String[]{"ATE0","ATL0","ATH1","ATS1","ATD0","ATSP6","ATCAF1","ATCFC1","ATSTFF"}){
-                String response=query(client,command);if(!response.toUpperCase(Locale.ROOT).contains("OK"))throw new IOException(command+" 명령 미지원: "+response.trim());
+
+    private void standardHeader(Elm327Client session) throws IOException {
+        setup(session, "ATCRA");
+        setup(session, "ATSH7DF");
+    }
+
+    private interface ReadQuery {
+        QueryResult read(Elm327Client session) throws IOException;
+    }
+
+    private static final class QueryResult {
+        final String text;
+        final Map<Integer, String> cells;
+
+        QueryResult(String text) {
+            this(text, Collections.emptyMap());
+        }
+
+        QueryResult(String text, Map<Integer, String> cells) {
+            this.text = text;
+            this.cells = cells;
+        }
+    }
+
+    private void runQuery(TextView output, ReadQuery query) {
+        Elm327Client session = client;
+        if (busy || session == null || !session.connected()) return;
+        int token = generation;
+        busy = true;
+        updateButtons();
+        setResult(output, "조회 중…");
+        if (output == batteryResult) setCells(Collections.emptyMap());
+        worker.execute(() -> {
+            try {
+                QueryResult result = query.read(session);
+                String timestamp = DateFormat.getDateTimeInstance().format(new Date());
+                done(token, () -> {
+                    connection.setText(session.connected() ? "OBD 연결됨" : "연결 끊김");
+                    setResult(output, "조회 시각  " + timestamp + "\n\n" + result.text);
+                    if (output == batteryResult) setCells(result.cells);
+                });
+            } catch (Exception e) {
+                session.close();
+                done(token, () -> {
+                    connection.setText("연결 끊김");
+                    setResult(output, "조회 실패 · " + e.getMessage());
+                });
+            } finally {
+                finishQuery(token);
             }
-            version=query(client,"ATI");String protocol=query(client,"ATDP");Double volts=Elm327Protocol.adapterVoltage(query(client,"ATRV"));
-            setup(client,"ATCRA");setup(client,"ATSH7DF");String vehicle=query(client,"0100");
-            String label="블루투스·어댑터 응답: 연결 성공\n표준 차량 ECU: "+(Elm327Protocol.standardEcuReply(vehicle)?"응답 확인":"미응답·미지원 여부 확인 필요")+"\n어댑터: "+version.trim()+"\n프로토콜: "+protocol.trim()+"\nOBD 어댑터 공급전압: "+(volts==null?"미수신":volts+" V")+"\n고전압 배터리 전압·상태와 구분하세요.";
-            done(token,()->adapterText.setText(label));
-        }catch(Exception e){client.close();done(token,()->adapterText.setText("연결 실패 · "+e.getMessage()));}finally{finishObd(token);}});
+        });
     }
-    private String query(Elm327Client client,String command)throws IOException{
-        String reply=client.query(command);String row="["+command+"]\n"+reply.trim()+"\n";synchronized(trace){if(trace.length()+row.length()>131072)trace.delete(0,Math.min(trace.length(),row.length()+8192));trace.append(row);}return reply;
+
+    private QueryResult readStandard(Elm327Client session) throws IOException {
+        standardHeader(session);
+        Set<Integer> supported = new HashSet<>();
+        for (int base = 0; base <= 0xA0; base += 0x20) {
+            if (base != 0 && !supported.contains(base)) break;
+            ObdVehicleData.supportedPids(query(session, standardCommand(base)), base, supported);
+        }
+        StringBuilder data = new StringBuilder();
+        int monitor = ObdVehicleData.MONITOR_STATUS;
+        if (supported.contains(monitor)) {
+            for (Map.Entry<String, byte[]> reply : ObdVehicleData.replies(
+                    query(session, standardCommand(monitor)), 0x41, monitor).entrySet()) {
+                byte[] bytes = reply.getValue();
+                if (bytes.length != 4) continue;
+                data.append("고장 표시등  ").append((bytes[0] & 0x80) == 0 ? "꺼짐" : "켜짐")
+                        .append(" (ECU ").append(reply.getKey()).append(")\n")
+                        .append("보고된 고장 코드 수  ").append(bytes[0] & 0x7F)
+                        .append(" (ECU ").append(reply.getKey()).append(")\n");
+            }
+        }
+        for (Map.Entry<Integer, ObdVehicleData.Signal> entry : ObdVehicleData.STANDARD.entrySet()) {
+            int pid = entry.getKey();
+            if (!supported.contains(pid)) continue;
+            ObdVehicleData.Signal signal = entry.getValue();
+            for (Map.Entry<String, byte[]> reply : ObdVehicleData.replies(
+                    query(session, standardCommand(pid)), 0x41, pid).entrySet()) {
+                String value = signal.value(reply.getValue());
+                if (value != null) data.append(signal.label).append("  ").append(value)
+                        .append(" (ECU ").append(reply.getKey()).append(")\n");
+            }
+        }
+        StringBuilder vehicle = new StringBuilder();
+        for (Map.Entry<String, byte[]> reply : ObdVehicleData.replies(
+                query(session, ObdVehicleData.VIN), 0x49, 2).entrySet()) {
+            String vin = ObdVehicleData.vin(reply.getValue());
+            if (vin != null) vehicle.append("차대번호  ").append(vin)
+                    .append(" (ECU ").append(reply.getKey()).append(")\n");
+        }
+        StringBuilder result = new StringBuilder();
+        if (data.length() > 0) result.append("차량 데이터\n").append(data).append('\n');
+        if (vehicle.length() > 0) result.append("차량 정보\n").append(vehicle);
+        return new QueryResult(result.length() == 0 ? "조회된 차량 데이터가 없습니다." : result.toString().trim());
     }
-    private void setup(Elm327Client client,String command)throws IOException{String response=query(client,command);if(!response.toUpperCase(Locale.ROOT).contains("OK"))throw new IOException(command+" 명령 미지원");}
-    private void runObd(boolean battery){
-        Elm327Client client=elm;if(obdBusy||client==null||!client.connected())return;int token=generation;obdBusy=true;buttons();
-        (battery?bmsText:dtcText).setText("조회 중…");obdWorker.execute(()->{try{
-            StringBuilder result=new StringBuilder();
-            if(battery){setup(client,"ATSH7E4");setup(client,"ATCRA7EC");for(String command:new String[]{"220101","220105"})result.append(command).append("\n").append(query(client,command).trim()).append("\n");result.append("\n84kWh 해석 미검증 · 원문을 저장해 차량별 항목 검증에 사용할 수 있습니다.");}
-            else{setup(client,"ATCRA");setup(client,"ATSH7DF");String[] commands={"03","07","0A"},labels={"저장 코드","대기 코드","영구 코드"};
-                for(int i=0;i<commands.length;i++){Elm327Protocol.Result decoded=Elm327Protocol.dtcs(query(client,commands[i]),Integer.parseInt(commands[i],16));result.append(labels[i]).append(": ").append(decoded.status()).append("\n");for(Map.Entry<String,List<String>> entry:decoded.codes.entrySet())result.append("  ECU ").append(entry.getKey()).append(": ").append(entry.getValue().isEmpty()?"보고된 코드 없음":entry.getValue()).append("\n");}
-                result.append("\n응답한 ECU의 표준 OBD 코드만 표시합니다. 미응답 ECU의 고장 유무는 알 수 없습니다.");}
-            done(token,()->(battery?bmsText:dtcText).setText(result.toString()));
-        }catch(Exception e){client.close();done(token,()->(battery?bmsText:dtcText).setText("조회 실패 · "+e.getMessage()));}finally{finishObd(token);}});
+
+    private static String standardCommand(int pid) {
+        return String.format(Locale.ROOT, "01%02X", pid);
     }
-    private void done(int token,Runnable action){main.post(()->{if(active&&generation==token)action.run();});}
-    private void finishObd(int token){main.post(()->{if(generation==token){obdBusy=false;buttons();}});}
-    private void buttons(){connect.setEnabled(!obdBusy);boolean ready=!obdBusy&&elm!=null&&elm.connected();dtc.setEnabled(ready);bms.setEnabled(ready);}
-    private void disconnect(){generation++;Elm327Client client=elm;elm=null;if(client!=null)client.close();obdBusy=false;if(connect!=null)buttons();}
-    private String report(){String raw;synchronized(trace){raw=trace.toString();}return "Kisa vehicle diagnostics\n2024 IONIQ5 PE / 84kWh / RWD / single motor\n"+c4Report+"\n\n"+adapterText.getText()+"\n"+dtcText.getText()+"\n"+bmsText.getText()+"\n\nELM raw responses\n"+raw;}
-    private void saveReport(){try{File folder=new File(getExternalFilesDir(null),"kisa_vehicle_diagnostics");if(!folder.isDirectory()&&!folder.mkdirs())throw new IOException("폴더 생성 실패");File file=new File(folder,"diagnostics-"+System.currentTimeMillis()+".txt");try(OutputStream out=new FileOutputStream(file)){out.write(report().getBytes(StandardCharsets.UTF_8));}Toast.makeText(this,"저장: "+file.getAbsolutePath(),Toast.LENGTH_LONG).show();}catch(Exception e){Toast.makeText(this,"저장 실패: "+e.getMessage(),Toast.LENGTH_LONG).show();}}
+
+    private QueryResult readDtcs(Elm327Client session) throws IOException {
+        standardHeader(session);
+        StringBuilder result = new StringBuilder();
+        String[] commands = {"03", "07", "0A"};
+        String[] labels = {"저장 코드", "대기 코드", "영구 코드"};
+        for (int i = 0; i < commands.length; i++) {
+            Elm327Protocol.Result decoded = Elm327Protocol.dtcs(query(session, commands[i]),
+                    Integer.parseInt(commands[i], 16));
+            if (i > 0) result.append("\n\n");
+            result.append(labels[i]).append(" · ").append(decoded.status());
+            for (Map.Entry<String, List<String>> ecu : decoded.codes.entrySet()) {
+                result.append("\nECU ").append(ecu.getKey());
+                if (ecu.getValue().isEmpty()) result.append("  보고된 코드 없음");
+                for (String code : ecu.getValue()) result.append("\n  ").append(code);
+            }
+        }
+        return new QueryResult(result.toString());
+    }
+
+    private QueryResult readBattery(Elm327Client session) throws IOException {
+        setup(session, "ATSH7E4");
+        setup(session, "ATCRA7EC");
+        ObdVehicleData.Battery battery = new ObdVehicleData.Battery();
+        IOException interruption = null;
+        try {
+            battery.add(ObdVehicleData.BATTERY_MAIN, query(session, ObdVehicleData.BATTERY_MAIN));
+            battery.add(ObdVehicleData.BATTERY_EXTRA, query(session, ObdVehicleData.BATTERY_EXTRA));
+            for (String command : ObdVehicleData.CELL_BLOCKS.keySet()) battery.add(command, query(session, command));
+        } catch (IOException e) {
+            session.close();
+            interruption = e;
+        }
+        StringBuilder result = new StringBuilder();
+        appendSection(result, "배터리 팩", battery.pack);
+        appendSection(result, "배터리 온도", battery.temperatures);
+        appendSection(result, "충·방전 누계", battery.totals);
+        if (!battery.cells.isEmpty()) result.append("셀 전압  ").append(battery.cells.size()).append("개 수신\n\n");
+        if (result.length() == 0) {
+            if (interruption != null) throw interruption;
+            result.append("해석할 수 있는 배터리 응답이 없습니다.");
+        } else if (interruption != null) {
+            result.append("일부 항목 조회 중단 · ").append(interruption.getMessage());
+        }
+        return new QueryResult(result.toString().trim(), battery.cells);
+    }
+
+    private static void appendSection(StringBuilder result, String title, Map<String, String> values) {
+        if (values.isEmpty()) return;
+        result.append(title).append('\n');
+        values.forEach((label, value) -> result.append(label).append("  ").append(value).append('\n'));
+        result.append('\n');
+    }
+
+    private void setCells(Map<Integer, String> cells) {
+        StringBuilder lines = new StringBuilder();
+        cells.forEach((number, value) -> lines.append("셀 ").append(number).append("  ").append(value).append('\n'));
+        cellsResult.setText(lines.toString().trim());
+        cellsResult.setVisibility(View.GONE);
+        cellsButton.setText("셀 전압 펼치기 (" + cells.size() + ")");
+        cellsButton.setVisibility(cells.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    private void toggleCells() {
+        boolean expand = cellsResult.getVisibility() != View.VISIBLE;
+        cellsResult.setVisibility(expand ? View.VISIBLE : View.GONE);
+        cellsButton.setText(expand ? "셀 전압 접기" : "셀 전압 펼치기");
+    }
+
+    private void resetResults() {
+        setResult(standardResult, "");
+        setResult(dtcResult, "");
+        setResult(batteryResult, "");
+        setCells(Collections.emptyMap());
+    }
+
+    private void setResult(TextView view, String value) {
+        view.setText(value);
+        view.setVisibility(value.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    private void done(int token, Runnable action) {
+        main.post(() -> {
+            if (generation == token) action.run();
+        });
+    }
+
+    private void finishQuery(int token) {
+        done(token, () -> {
+            busy = false;
+            updateButtons();
+        });
+    }
+
+    private void updateButtons() {
+        connectButton.setEnabled(!busy);
+        boolean connected = !busy && client != null && client.connected();
+        standardButton.setEnabled(connected);
+        dtcButton.setEnabled(connected);
+        batteryButton.setEnabled(connected);
+    }
+
+    private void disconnect() {
+        generation++;
+        if (client != null) client.close();
+        client = null;
+        busy = false;
+        if (connection != null) connection.setText("연결 안 됨");
+        if (connectButton != null) updateButtons();
+    }
+
+    private String report() {
+        StringBuilder report = new StringBuilder("차량 진단\n");
+        for (TextView section : new TextView[]{standardResult, dtcResult, batteryResult, cellsResult}) {
+            if (section.length() > 0) report.append('\n').append(section.getText()).append('\n');
+        }
+        synchronized (trace) {
+            if (trace.length() > 0) report.append("\n차량 응답 원문\n").append(trace);
+        }
+        return report.toString();
+    }
+
+    private void saveReport() {
+        try {
+            File storage = getExternalFilesDir(null);
+            if (storage == null) throw new IOException("저장공간을 사용할 수 없습니다.");
+            File folder = new File(storage, "kisa_vehicle_diagnostics");
+            if (!folder.isDirectory() && !folder.mkdirs()) throw new IOException("폴더 생성 실패");
+            File file = new File(folder, "diagnostics-" + System.currentTimeMillis() + ".txt");
+            try (OutputStream out = new FileOutputStream(file)) {
+                out.write(report().getBytes(StandardCharsets.UTF_8));
+            }
+            Toast.makeText(this, "저장: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
+        } catch (IOException e) {
+            Toast.makeText(this, "저장 실패: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
 }

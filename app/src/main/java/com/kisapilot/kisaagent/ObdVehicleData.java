@@ -50,8 +50,8 @@ final class ObdVehicleData {
         if (BATTERY_MAIN.equals(command) || BATTERY_EXTRA.equals(command)
                 || VIN.equals(command) || CELL_BLOCKS.containsKey(command)) return true;
         if (!command.matches("01[0-9A-F]{2}")) return false;
-        int pid = Integer.parseInt(command.substring(2), 16);
-        return (pid <= 0xA0 && pid % 32 == 0) || pid == MONITOR_STATUS || STANDARD.containsKey(pid);
+        // Service 01 only reads current data. Unknown supported PIDs are retained as RAW.
+        return true;
     }
 
     static Map<String, byte[]> replies(String raw, int service, int... identifier) {

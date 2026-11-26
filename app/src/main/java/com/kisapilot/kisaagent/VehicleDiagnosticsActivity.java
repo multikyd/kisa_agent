@@ -30,11 +30,9 @@ import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -44,9 +42,10 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
     private final StringBuilder trace = new StringBuilder();
     private Elm327Client client;
     private boolean busy;
+    private boolean traceTruncated;
     private int generation;
-    private Button connectButton, standardButton, dtcButton, batteryButton, cellsButton;
-    private TextView connection, standardResult, dtcResult, batteryResult, cellsResult;
+    private Button connectButton, standardButton, dtcButton, batteryButton, cellsButton, allButton, rawButton;
+    private TextView connection, standardResult, dtcResult, batteryResult, cellsResult, allResult, rawResult;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -66,7 +65,14 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
         button(root, "연결 종료", this::disconnect);
         connection = text(root, "연결 안 됨", 16);
 
-        standardButton = button(root, "차량 데이터 조회", () -> runQuery(standardResult, this::readStandard));
+        allButton = button(root, "전체 진단 RAW 수집", () -> {
+            resetResults();
+            synchronized (trace) { trace.setLength(0); traceTruncated = false; }
+            runQuery(allResult, this::readAll);
+        });
+        text(root, "지원 PID 전체 → 고장 코드 → 배터리·셀 전압 순서로 수집합니다. 수집 중에는 이 화면을 유지해 주세요. 중단해도 받은 RAW는 저장할 수 있습니다.", 14);
+        allResult = text(root, "", 16);
+        standardButton = button(root, "차량 PID 전체 조회", () -> runQuery(standardResult, this::readStandard));
         standardResult = text(root, "", 16);
         dtcButton = button(root, "고장 코드 조회", () -> runQuery(dtcResult, this::readDtcs));
         dtcResult = text(root, "", 16);
@@ -74,6 +80,14 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
         batteryResult = text(root, "", 16);
         cellsButton = button(root, "", this::toggleCells);
         cellsResult = text(root, "", 16);
+        rawButton = button(root, "차량 응답 RAW 펼치기", () -> {
+            boolean expand = rawResult.getVisibility() != View.VISIBLE;
+            rawResult.setText(rawReport());
+            rawResult.setVisibility(expand ? View.VISIBLE : View.GONE);
+            rawButton.setText(expand ? "차량 응답 RAW 접기" : "차량 응답 RAW 펼치기");
+        });
+        rawResult = text(root, "", 13);
+        rawResult.setTextIsSelectable(true);
         resetResults();
 
         button(root, "진단 결과 복사", () -> ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE))
@@ -165,6 +179,7 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
         worker.execute(() -> {
             synchronized (trace) {
                 trace.setLength(0);
+                traceTruncated = false;
             }
             try {
                 session.connect(device);
@@ -182,20 +197,38 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
     }
 
     private String query(Elm327Client session, String command) throws IOException {
-        String response = session.query(command);
-        String entry = "[" + command + "]\n" + response.trim() + "\n";
+        main.post(() -> {
+            if (client == session && busy) connection.setText("수집 중 · " + command);
+        });
+        try {
+            String response = session.query(command);
+            appendTrace("[" + command + "]\n" + response + "\n");
+            return response;
+        } catch (IOException e) {
+            appendTrace("[" + command + "]\n조회 실패 · " + e.getMessage() + "\n");
+            throw e;
+        }
+    }
+
+    private void appendTrace(String entry) {
         synchronized (trace) {
-            while (trace.length() + entry.length() > 131072) {
+            while (trace.length() + entry.length() > 4 * 1024 * 1024) {
                 int next = trace.indexOf("\n[");
                 trace.delete(0, next < 0 ? trace.length() : next + 1);
+                traceTruncated = true;
             }
             trace.append(entry);
         }
-        return response;
+    }
+
+    private String rawReport() {
+        synchronized (trace) {
+            return (traceTruncated ? "RAW 용량 제한으로 이전 응답 일부 생략\n" : "") + trace;
+        }
     }
 
     private void setup(Elm327Client session, String command) throws IOException {
-        if (!session.query(command).toUpperCase(Locale.ROOT).contains("OK")) {
+        if (!query(session, command).toUpperCase(Locale.ROOT).contains("OK")) {
             throw new IOException("진단 장치 설정 실패 (" + command + ")");
         }
     }
@@ -230,7 +263,7 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
         busy = true;
         updateButtons();
         setResult(output, "조회 중…");
-        if (output == batteryResult) setCells(Collections.emptyMap());
+        if (output == batteryResult || output == allResult) setCells(Collections.emptyMap());
         worker.execute(() -> {
             try {
                 QueryResult result = query.read(session);
@@ -238,7 +271,7 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
                 done(token, () -> {
                     connection.setText(session.connected() ? "OBD 연결됨" : "연결 끊김");
                     setResult(output, "조회 시각  " + timestamp + "\n\n" + result.text);
-                    if (output == batteryResult) setCells(result.cells);
+                    if (output == batteryResult || output == allResult) setCells(result.cells);
                 });
             } catch (Exception e) {
                 session.close();
@@ -254,50 +287,17 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
 
     private QueryResult readStandard(Elm327Client session) throws IOException {
         standardHeader(session);
-        Set<Integer> supported = new HashSet<>();
-        for (int base = 0; base <= 0xA0; base += 0x20) {
-            if (base != 0 && !supported.contains(base)) break;
-            ObdVehicleData.supportedPids(query(session, standardCommand(base)), base, supported);
-        }
-        StringBuilder data = new StringBuilder();
-        int monitor = ObdVehicleData.MONITOR_STATUS;
-        if (supported.contains(monitor)) {
-            for (Map.Entry<String, byte[]> reply : ObdVehicleData.replies(
-                    query(session, standardCommand(monitor)), 0x41, monitor).entrySet()) {
-                byte[] bytes = reply.getValue();
-                if (bytes.length != 4) continue;
-                data.append("고장 표시등  ").append((bytes[0] & 0x80) == 0 ? "꺼짐" : "켜짐")
-                        .append(" (ECU ").append(reply.getKey()).append(")\n")
-                        .append("보고된 고장 코드 수  ").append(bytes[0] & 0x7F)
-                        .append(" (ECU ").append(reply.getKey()).append(")\n");
-            }
-        }
-        for (Map.Entry<Integer, ObdVehicleData.Signal> entry : ObdVehicleData.STANDARD.entrySet()) {
-            int pid = entry.getKey();
-            if (!supported.contains(pid)) continue;
-            ObdVehicleData.Signal signal = entry.getValue();
-            for (Map.Entry<String, byte[]> reply : ObdVehicleData.replies(
-                    query(session, standardCommand(pid)), 0x41, pid).entrySet()) {
-                String value = signal.value(reply.getValue());
-                if (value != null) data.append(signal.label).append("  ").append(value)
-                        .append(" (ECU ").append(reply.getKey()).append(")\n");
-            }
-        }
-        StringBuilder vehicle = new StringBuilder();
-        for (Map.Entry<String, byte[]> reply : ObdVehicleData.replies(
-                query(session, ObdVehicleData.VIN), 0x49, 2).entrySet()) {
-            String vin = ObdVehicleData.vin(reply.getValue());
-            if (vin != null) vehicle.append("차대번호  ").append(vin)
-                    .append(" (ECU ").append(reply.getKey()).append(")\n");
-        }
-        StringBuilder result = new StringBuilder();
-        if (data.length() > 0) result.append("차량 데이터\n").append(data).append('\n');
-        if (vehicle.length() > 0) result.append("차량 정보\n").append(vehicle);
-        return new QueryResult(result.length() == 0 ? "조회된 차량 데이터가 없습니다." : result.toString().trim());
+        return new QueryResult(StandardPidScan.read(command -> query(session, command)));
     }
 
-    private static String standardCommand(int pid) {
-        return String.format(Locale.ROOT, "01%02X", pid);
+    private QueryResult readAll(Elm327Client session) throws IOException {
+        query(session, "ATDP");
+        query(session, "ATRV");
+        QueryResult standard = readStandard(session);
+        QueryResult dtcs = readDtcs(session);
+        QueryResult battery = readBattery(session);
+        return new QueryResult("차량 PID\n" + standard.text + "\n\n고장 코드\n" + dtcs.text
+                + "\n\n배터리 상세\n" + battery.text, battery.cells);
     }
 
     private QueryResult readDtcs(Elm327Client session) throws IOException {
@@ -336,11 +336,12 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
         appendSection(result, "배터리 팩", battery.pack);
         appendSection(result, "배터리 온도", battery.temperatures);
         appendSection(result, "충·방전 누계", battery.totals);
-        if (!battery.cells.isEmpty()) result.append("셀 전압  ").append(battery.cells.size()).append("개 수신\n\n");
-        if (result.length() == 0) {
-            if (interruption != null) throw interruption;
-            result.append("해석할 수 있는 배터리 응답이 없습니다.");
-        } else if (interruption != null) {
+        if (result.length() == 0 && battery.cells.isEmpty()) {
+            result.append("해석할 수 있는 배터리 응답이 없습니다.\n");
+        }
+        result.append("셀 전압  ").append(battery.cells.size()).append("개 수신\n");
+        if (battery.cells.isEmpty()) result.append("개별 셀 응답 미수신 · RAW에서 응답·미지원 여부 확인\n");
+        if (interruption != null) {
             result.append("일부 항목 조회 중단 · ").append(interruption.getMessage());
         }
         return new QueryResult(result.toString().trim(), battery.cells);
@@ -357,8 +358,8 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
         StringBuilder lines = new StringBuilder();
         cells.forEach((number, value) -> lines.append("셀 ").append(number).append("  ").append(value).append('\n'));
         cellsResult.setText(lines.toString().trim());
-        cellsResult.setVisibility(View.GONE);
-        cellsButton.setText("셀 전압 펼치기 (" + cells.size() + ")");
+        cellsResult.setVisibility(cells.isEmpty() ? View.GONE : View.VISIBLE);
+        cellsButton.setText("셀 전압 접기 (" + cells.size() + ")");
         cellsButton.setVisibility(cells.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
@@ -369,6 +370,10 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
     }
 
     private void resetResults() {
+        setResult(allResult, "");
+        rawResult.setText("");
+        rawResult.setVisibility(View.GONE);
+        rawButton.setText("차량 응답 RAW 펼치기");
         setResult(standardResult, "");
         setResult(dtcResult, "");
         setResult(batteryResult, "");
@@ -389,6 +394,7 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
     private void finishQuery(int token) {
         done(token, () -> {
             busy = false;
+            rawResult.setText(rawReport());
             updateButtons();
         });
     }
@@ -396,6 +402,7 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
     private void updateButtons() {
         connectButton.setEnabled(!busy);
         boolean connected = !busy && client != null && client.connected();
+        allButton.setEnabled(connected);
         standardButton.setEnabled(connected);
         dtcButton.setEnabled(connected);
         batteryButton.setEnabled(connected);
@@ -412,12 +419,11 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
 
     private String report() {
         StringBuilder report = new StringBuilder("차량 진단\n");
-        for (TextView section : new TextView[]{standardResult, dtcResult, batteryResult, cellsResult}) {
+        for (TextView section : new TextView[]{allResult, standardResult, dtcResult, batteryResult, cellsResult}) {
             if (section.length() > 0) report.append('\n').append(section.getText()).append('\n');
         }
-        synchronized (trace) {
-            if (trace.length() > 0) report.append("\n차량 응답 원문\n").append(trace);
-        }
+        String raw = rawReport();
+        if (!raw.isEmpty()) report.append("\n차량 응답 원문\n").append(raw);
         return report.toString();
     }
 

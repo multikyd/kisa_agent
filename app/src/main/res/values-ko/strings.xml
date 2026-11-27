@@ -301,4 +301,9 @@
     <string name="btn_bookmark_logs">북마크 로그 가져오기</string>
     <string name="branch_list_retry">브랜치 목록 없음 · 눌러서 다시 조회</string>
     <string name="bookmark_storage_settings">북마크 저장 설정 · 폰 / SFTP</string>
+    <string name="car_select_brand">제조사 선택</string>
+    <string name="car_select_back_to_brands">제조사 목록</string>
+    <string name="car_list_load_failed">차량 목록을 불러오지 못했습니다.</string>
+    <string name="car_save_failed">차량 선택을 저장하지 못했습니다 (%1$s).</string>
+    <string name="car_catalog_required">제조사별 차량 목록을 받지 못했습니다. 연결한 장치의 오픈파일럿을 업데이트해 주세요.</string>
 </resources>

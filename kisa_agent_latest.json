@@ -1,10 +1,10 @@
 {
-    "versionCode": 47,
-    "versionName": "1.0.37",
+    "versionCode": 48,
+    "versionName": "1.0.38",
     "apkUrl": "https://raw.githubusercontent.com/multikyd/kisa_agent/main/kisa_agent.apk",
-    "sha256": "eba9c358e6799609e0f6d184ce14b37317165f63e197f349d8eeec81ae488a68",
+    "sha256": "8507caf04f23763c326ddb184e544f676690b7a89da4598c3890057b35b82f2e",
     "releaseNotes": {
-        "ko": "- \uc2e4\ucc28 \uc9c4\ub2e8 \ub85c\uadf8\ub97c \ubc18\uc601\ud574 \ud45c\uc900 PID \ud574\uc11d\uacfc \ubc30\ud130\ub9ac \uc81c\uc5b4 \uc0c1\ud0dc\u00b7\uc720\uc785 \uc628\ub3c4\u00b7\ud329 \uc804\ub825 \ud45c\uc2dc\ub97c \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4. \uc140 192\uac1c\uc758 \uc804\uc555 \uc694\uc57d\uacfc \ubcf4\uace0 \ub2e8\uc704\ub97c \ud45c\uc2dc\ud558\uace0 \uc804\uccb4\u00b7\uac1c\ubcc4 \uc9c4\ub2e8 \uacb0\uacfc\uc758 \uc911\ubcf5 \uc800\uc7a5\uc744 \uc218\uc815\ud588\uc2b5\ub2c8\ub2e4.",
-        "en": "- Decode additional recorded PIDs and display battery control status, inlet temperature, and calculated power. Add cell voltage statistics and resolution, and prevent duplicate full/individual diagnostic results."
+        "ko": "- \uc624\ud508\ud30c\uc77c\ub7ff \ucc28\ub7c9 \ubaa9\ub85d\uc744 \uc81c\uc870\uc0ac\uc640 \ubaa8\ub378\ubcc4\ub85c \ud45c\uc2dc\ud569\ub2c8\ub2e4. \uc120\ud0dd\ud55c \ubaa8\ub378\uc758 \ud50c\ub7ab\ud3fc ID\ub97c \uc800\uc7a5\ud569\ub2c8\ub2e4. \uc81c\uc870\uc0ac\ubcc4 \ucc28\ub7c9 \ubaa9\ub85d\uc744 \uc81c\uacf5\ud558\ub294 \uc624\ud508\ud30c\uc77c\ub7ff\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
+        "en": "- Choose an openpilot vehicle by manufacturer and model. The app saves its platform ID. Requires openpilot with the categorized vehicle catalog."
     }
 }

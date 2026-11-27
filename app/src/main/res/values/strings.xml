@@ -301,4 +301,9 @@
     <string name="btn_bookmark_logs">Bookmark Logs</string>
     <string name="branch_list_retry">Branch list unavailable · Tap to retry</string>
     <string name="bookmark_storage_settings">Bookmark storage · Phone / SFTP</string>
+    <string name="car_select_brand">Select Manufacturer</string>
+    <string name="car_select_back_to_brands">Manufacturers</string>
+    <string name="car_list_load_failed">Could not load the vehicle list.</string>
+    <string name="car_save_failed">Could not save the vehicle selection (%1$s).</string>
+    <string name="car_catalog_required">Vehicle categories are unavailable. Update openpilot on the connected device.</string>
 </resources>

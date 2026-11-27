@@ -27,8 +27,8 @@ android {
         minSdk = 26
         ndk { abiFilters += listOf("arm64-v8a") }
         targetSdk = 36
-        versionCode = 47
-        versionName = "1.0.37"
+        versionCode = 48
+        versionName = "1.0.38"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -147,8 +147,8 @@ tasks.register("publishKisaAgent") {
             "apkUrl" to "https://raw.githubusercontent.com/multikyd/kisa_agent/main/kisa_agent.apk",
             "sha256" to sha256,
             "releaseNotes" to mapOf(
-                "ko" to "- 실차 진단 로그를 반영해 표준 PID 해석과 배터리 제어 상태·유입 온도·팩 전력 표시를 추가했습니다. 셀 192개의 전압 요약과 보고 단위를 표시하고 전체·개별 진단 결과의 중복 저장을 수정했습니다.",
-                "en" to "- Decode additional recorded PIDs and display battery control status, inlet temperature, and calculated power. Add cell voltage statistics and resolution, and prevent duplicate full/individual diagnostic results."
+                "ko" to "- 오픈파일럿 차량 목록을 제조사와 모델별로 표시합니다. 선택한 모델의 플랫폼 ID를 저장합니다. 제조사별 차량 목록을 제공하는 오픈파일럿이 필요합니다.",
+                "en" to "- Choose an openpilot vehicle by manufacturer and model. The app saves its platform ID. Requires openpilot with the categorized vehicle catalog."
             )
         )
         val backup = layout.buildDirectory.dir("publication-backup").get().asFile.apply { mkdirs() }

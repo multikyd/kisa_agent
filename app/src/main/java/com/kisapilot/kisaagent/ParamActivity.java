@@ -42,7 +42,9 @@ public class ParamActivity extends AppCompatActivity {
     private String currentGroup = "ALL";     // 현재 선택된 그룹
 
     private Button btnSelectCar;
-    private String[] loadedCarList = null; // 차량 목록 저장용
+    private VehicleCatalog vehicleCatalog = VehicleCatalog.empty();
+    private String selectedVehicleId = "";
+    private boolean loadingVehicles, savingVehicle;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,149 +107,122 @@ public class ParamActivity extends AppCompatActivity {
         }).start();
     }
 
-    // ★ 1. 서버에서 CarList와 CarName 가져오기
     private void fetchCarInfo() {
+        if (loadingVehicles || savingVehicle) return;
+        loadingVehicles = true;
+        String baseUrl = "http://" + HomeActivity.serverIp + ":5005/param/get?name=";
         new Thread(() -> {
             try {
-                // CarList 가져오기
-                String listUrl = "http://" + HomeActivity.serverIp + ":5005/param/get?name=CarList";
-                String listJson = getResponseFromUrl(listUrl);
-                JSONObject listObj = new JSONObject(listJson);
-                String carListRaw = listObj.optString("value", "");
-
-                // CarName 가져오기
-                String selectedUrl = "http://" + HomeActivity.serverIp + ":5005/param/get?name=CarName";
-                String selectedJson = getResponseFromUrl(selectedUrl);
-                JSONObject selectedObj = new JSONObject(selectedJson);
-                String currentCar = selectedObj.optString("value", "");
-
+                VehicleCatalog catalog = VehicleCatalog.parse(new JSONObject(getResponseFromUrl(baseUrl + "CarList")));
+                JSONObject selection = new JSONObject(getResponseFromUrl(baseUrl + "CarName"));
+                String id = selection.isNull("value") ? "" : selection.optString("value").trim();
                 runOnUiThread(() -> {
-                    // 1. 차량 목록 파싱 (줄바꿈 문자로 분리)
-                    if (!carListRaw.isEmpty()) {
-                        loadedCarList = carListRaw.split("\n");
-                    }
-
-                    // 2. 버튼 텍스트 업데이트
-                    if (currentCar != null && !currentCar.isEmpty() && !currentCar.equals("null")) {
-                        btnSelectCar.setText(currentCar);
-                    } else {
-                        btnSelectCar.setText(getString(R.string.select_car_placeholder));
+                    loadingVehicles = false;
+                    vehicleCatalog = catalog;
+                    selectedVehicleId = id;
+                    refreshVehicleLabel();
+                    if (catalog.groups.isEmpty()) {
+                        Toast.makeText(this, R.string.car_catalog_required, Toast.LENGTH_LONG).show();
                     }
                 });
-
             } catch (Exception e) {
-                e.printStackTrace();
+                runOnUiThread(() -> {
+                    loadingVehicles = false;
+                    Toast.makeText(this, R.string.car_list_load_failed, Toast.LENGTH_SHORT).show();
+                });
             }
         }).start();
     }
 
-    // ★ 2. 차량 선택 팝업 띄우기
+    private void refreshVehicleLabel() {
+        btnSelectCar.setText(selectedVehicleId.isEmpty() ? getString(R.string.select_car_placeholder)
+                : vehicleCatalog.labelFor(selectedVehicleId));
+    }
+
     private void showCarSelectionDialog() {
-        if (loadedCarList == null || loadedCarList.length == 0) {
-            Toast.makeText(this, getString(R.string.loading_car_list), Toast.LENGTH_SHORT).show();
-            // 목록이 없어도 다시 한번 불러오기 시도
+        if (savingVehicle || isFinishing() || isDestroyed()) return;
+        if (loadingVehicles) {
+            Toast.makeText(this, R.string.loading_car_list, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (vehicleCatalog.groups.isEmpty()) {
             fetchCarInfo();
             return;
         }
+        List<VehicleCatalog.Group> groups = vehicleCatalog.groups;
+        String[] brands = new String[groups.size()];
+        for (int i = 0; i < groups.size(); i++) brands[i] = groups.get(i).brand;
+        vehicleDialog(getString(R.string.car_select_brand))
+                .setItems(brands, (dialog, which) -> {
+                    VehicleCatalog.Group group = groups.get(which);
+                    showVehicleModels(group.brand, group.cars);
+                }).show();
+    }
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(getString(R.string.car_select_title));
-
-        builder.setItems(loadedCarList, (dialog, which) -> {
-            String selectedCar = loadedCarList[which];
-            updateSelectedCar(selectedCar); // 서버에 저장
-        });
-
-        builder.setNegativeButton(getString(R.string.action_cancel), null);
-
-        String currentButtonText = btnSelectCar.getText().toString();
-        String placeholderText = getString(R.string.select_car_placeholder);
-
-        // 현재 버튼 텍스트가 기본 플레이스홀더가 아닐 경우에만 '선택 해제' 버튼을 추가합니다.
-        if (!currentButtonText.equals(placeholderText)) {
-            builder.setNeutralButton(getString(R.string.action_deselect), (dialog, which) -> {
-                removeSelectedCar();
-            });
+    private AlertDialog.Builder vehicleDialog(String title) {
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this).setTitle(title)
+                .setNegativeButton(R.string.action_cancel, null);
+        if (!selectedVehicleId.isEmpty()) {
+            dialog.setNeutralButton(R.string.action_deselect, (view, which) -> saveVehicle(null));
         }
-
-        builder.show();
+        return dialog;
     }
 
-    // ★ 3. 선택한 차량 서버에 저장하기 (POST)
-    private void updateSelectedCar(String carName) {
-        new Thread(() -> {
-            try {
-                URL url = new URL("http://" + HomeActivity.serverIp + ":5005/param/set");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setDoOutput(true);
+    private void showVehicleModels(String title, List<VehicleCatalog.Vehicle> cars) {
+        AlertDialog.Builder dialog = vehicleDialog(title);
+        dialog.setNegativeButton(R.string.car_select_back_to_brands, (view, which) -> showCarSelectionDialog());
+        int checked = -1;
+        String[] labels = new String[cars.size()];
+        for (int i = 0; i < cars.size(); i++) {
+            VehicleCatalog.Vehicle car = cars.get(i);
+            labels[i] = car.label;
+            if (checked < 0 && car.id.equals(selectedVehicleId)) checked = i;
+        }
+        dialog.setSingleChoiceItems(labels, checked, (view, which) -> {
+            view.dismiss();
+            saveVehicle(cars.get(which));
+        }).show();
+    }
 
+    private void saveVehicle(VehicleCatalog.Vehicle car) {
+        if (savingVehicle || loadingVehicles) return;
+        savingVehicle = true;
+        btnSelectCar.setEnabled(false);
+        new Thread(() -> {
+            HttpURLConnection conn = null;
+            try {
+                String action = car == null ? "remove" : "set";
+                URL url = new URL("http://" + HomeActivity.serverIp + ":5005/param/" + action);
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setConnectTimeout(3000);
+                conn.setReadTimeout(3000);
+                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                conn.setDoOutput(true);
                 JSONObject json = new JSONObject();
                 json.put("param", "CarName");
-                json.put("value", carName); // 문자열 그대로 전송
-
-                java.io.OutputStream os = conn.getOutputStream();
-                os.write(json.toString().getBytes("UTF-8"));
-                os.flush();
-                os.close();
-
-                if (conn.getResponseCode() == 200) {
-                    runOnUiThread(() -> {
-                        btnSelectCar.setText(carName); // 버튼 텍스트 변경
-                        String message = getString(R.string.car_changed_to, carName);
-                        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
-                    });
+                if (car != null) json.put("value", car.id);
+                try (java.io.OutputStream out = conn.getOutputStream()) {
+                    out.write(json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 }
-                conn.disconnect();
-            } catch (Exception e) {
+                int code = conn.getResponseCode();
+                if (code != 200) throw new java.io.IOException("HTTP " + code);
                 runOnUiThread(() -> {
-                    String errorMessage = getString(R.string.error_occurred) + e.getMessage();
-                    Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show();
+                    selectedVehicleId = car == null ? "" : car.id;
+                    if (car == null) refreshVehicleLabel();
+                    else btnSelectCar.setText(car.label);
+                    String message = car == null ? getString(R.string.car_info_removed_successfully)
+                            : getString(R.string.car_changed_to, car.label);
+                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
                 });
-            }
-        }).start();
-    }
-
-    private void removeSelectedCar() {
-        new Thread(() -> {
-            try {
-                // 서버에 추가될 "param/remove" 엔드포인트 호출
-                URL url = new URL("http://" + HomeActivity.serverIp + ":5005/param/remove");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setDoOutput(true);
-
-                // 삭제할 파라미터 이름("CarName")을 JSON으로 전송
-                JSONObject json = new JSONObject();
-                json.put("param", "CarName");
-
-                java.io.OutputStream os = conn.getOutputStream();
-                os.write(json.toString().getBytes("UTF-8"));
-                os.flush();
-                os.close();
-
-                if (conn.getResponseCode() == 200) {
-                    runOnUiThread(() -> {
-                        // 성공 시, 버튼 텍스트를 기본값으로 변경
-                        btnSelectCar.setText(getString(R.string.select_car_placeholder));
-                        Toast.makeText(this, getString(R.string.car_info_removed_successfully), Toast.LENGTH_SHORT).show();
-                    });
-                } else {
-                    final int responseCode = conn.getResponseCode();
-                    runOnUiThread(() -> {
-                        // 실패 메시지를 strings.xml에서 가져오도록 수정
-                        String errorMessage = getString(R.string.remove_failed) + responseCode;
-                        Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show();
-                    });
-                }
-                conn.disconnect();
             } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, getString(R.string.car_save_failed, e.getMessage()),
+                        Toast.LENGTH_SHORT).show());
+            } finally {
+                if (conn != null) conn.disconnect();
                 runOnUiThread(() -> {
-                    // 오류 메시지를 strings.xml에서 가져오도록 수정
-                    String errorMessage = getString(R.string.deselect_error) + e.getMessage();
-                    Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show();
+                    savingVehicle = false;
+                    btnSelectCar.setEnabled(true);
                 });
             }
         }).start();
@@ -258,16 +233,17 @@ public class ParamActivity extends AppCompatActivity {
         URL url = new URL(urlString);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
-        conn.setConnectTimeout(2000);
-
-        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) sb.append(line).append("\n");
-        reader.close();
-        conn.disconnect();
-
-        return sb.toString();
+        conn.setConnectTimeout(3000);
+        conn.setReadTimeout(3000);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                conn.getInputStream(), java.nio.charset.StandardCharsets.UTF_8))) {
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) response.append(line).append('\n');
+            return response.toString();
+        } finally {
+            conn.disconnect();
+        }
     }
 
     // 다국어 처리 헬퍼 메서드

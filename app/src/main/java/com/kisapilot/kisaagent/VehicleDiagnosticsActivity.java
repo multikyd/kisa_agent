@@ -245,14 +245,21 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
     private static final class QueryResult {
         final String text;
         final Map<Integer, String> cells;
+        final String standardText, dtcText;
 
         QueryResult(String text) {
             this(text, Collections.emptyMap());
         }
 
         QueryResult(String text, Map<Integer, String> cells) {
+            this(text, cells, null, null);
+        }
+
+        QueryResult(String text, Map<Integer, String> cells, String standardText, String dtcText) {
             this.text = text;
             this.cells = cells;
+            this.standardText = standardText;
+            this.dtcText = dtcText;
         }
     }
 
@@ -270,7 +277,15 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
                 String timestamp = DateFormat.getDateTimeInstance().format(new Date());
                 done(token, () -> {
                     connection.setText(session.connected() ? "OBD 연결됨" : "연결 끊김");
-                    setResult(output, "조회 시각  " + timestamp + "\n\n" + result.text);
+                    String time = "조회 시각  " + timestamp + "\n\n";
+                    if (output == allResult) {
+                        setResult(allResult, "전체 진단 수집 결과 · " + timestamp);
+                        setResult(standardResult, time + result.standardText);
+                        setResult(dtcResult, time + result.dtcText);
+                        setResult(batteryResult, time + result.text);
+                    } else {
+                        setResult(output, time + result.text);
+                    }
                     if (output == batteryResult || output == allResult) setCells(result.cells);
                 });
             } catch (Exception e) {
@@ -296,8 +311,7 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
         QueryResult standard = readStandard(session);
         QueryResult dtcs = readDtcs(session);
         QueryResult battery = readBattery(session);
-        return new QueryResult("차량 PID\n" + standard.text + "\n\n고장 코드\n" + dtcs.text
-                + "\n\n배터리 상세\n" + battery.text, battery.cells);
+        return new QueryResult(battery.text, battery.cells, standard.text, dtcs.text);
     }
 
     private QueryResult readDtcs(Elm327Client session) throws IOException {
@@ -334,11 +348,13 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
         }
         StringBuilder result = new StringBuilder();
         appendSection(result, "배터리 팩", battery.pack);
+        appendSection(result, "충전·배터리 제어 상태", battery.status);
         appendSection(result, "배터리 온도", battery.temperatures);
         appendSection(result, "충·방전 누계", battery.totals);
         if (result.length() == 0 && battery.cells.isEmpty()) {
             result.append("해석할 수 있는 배터리 응답이 없습니다.\n");
         }
+        appendSection(result, "셀 전압 요약", battery.cellSummary());
         result.append("셀 전압  ").append(battery.cells.size()).append("개 수신\n");
         if (battery.cells.isEmpty()) result.append("개별 셀 응답 미수신 · RAW에서 응답·미지원 여부 확인\n");
         if (interruption != null) {
@@ -419,8 +435,16 @@ public final class VehicleDiagnosticsActivity extends AppCompatActivity {
 
     private String report() {
         StringBuilder report = new StringBuilder("차량 진단\n");
-        for (TextView section : new TextView[]{allResult, standardResult, dtcResult, batteryResult, cellsResult}) {
-            if (section.length() > 0) report.append('\n').append(section.getText()).append('\n');
+        try {
+            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            report.append("앱 버전  ").append(info.versionName).append('\n');
+        } catch (PackageManager.NameNotFoundException ignored) { }
+        if (allResult.length() > 0) report.append('\n').append(allResult.getText()).append('\n');
+        TextView[] sections = {standardResult, dtcResult, batteryResult, cellsResult};
+        String[] titles = {"차량 PID", "고장 코드", "배터리 상세", "개별 셀 전압"};
+        for (int i = 0; i < sections.length; i++) {
+            if (sections[i].length() > 0) report.append('\n').append(titles[i]).append('\n')
+                    .append(sections[i].getText()).append('\n');
         }
         String raw = rawReport();
         if (!raw.isEmpty()) report.append("\n차량 응답 원문\n").append(raw);

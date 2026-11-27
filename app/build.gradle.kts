@@ -27,8 +27,8 @@ android {
         minSdk = 26
         ndk { abiFilters += listOf("arm64-v8a") }
         targetSdk = 36
-        versionCode = 46
-        versionName = "1.0.36"
+        versionCode = 47
+        versionName = "1.0.37"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -147,8 +147,8 @@ tasks.register("publishKisaAgent") {
             "apkUrl" to "https://raw.githubusercontent.com/multikyd/kisa_agent/main/kisa_agent.apk",
             "sha256" to sha256,
             "releaseNotes" to mapOf(
-                "ko" to "- 차량 진단에 배터리 상세값과 셀별 전압을 표시합니다. 전체 진단 RAW 수집으로 차량이 지원하는 표준 PID, 고장 코드, 배터리·셀 전압 응답을 수집하고 화면 확인·파일 저장을 지원합니다.",
-                "en" to "- Display detailed battery diagnostics and individual cell voltages. Collect all advertised standard OBD PIDs, trouble codes, and battery/cell replies with RAW viewing and file export."
+                "ko" to "- 실차 진단 로그를 반영해 표준 PID 해석과 배터리 제어 상태·유입 온도·팩 전력 표시를 추가했습니다. 셀 192개의 전압 요약과 보고 단위를 표시하고 전체·개별 진단 결과의 중복 저장을 수정했습니다.",
+                "en" to "- Decode additional recorded PIDs and display battery control status, inlet temperature, and calculated power. Add cell voltage statistics and resolution, and prevent duplicate full/individual diagnostic results."
             )
         )
         val backup = layout.buildDirectory.dir("publication-backup").get().asFile.apply { mkdirs() }

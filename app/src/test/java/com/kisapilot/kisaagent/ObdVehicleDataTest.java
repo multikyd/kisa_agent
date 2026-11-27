@@ -64,6 +64,41 @@ public class ObdVehicleDataTest {
         assertFalse(ObdVehicleData.allows("22010D"));
     }
 
+    @Test public void cellSummaryUsesOnlyValidReceivedCellsAndReportsQuantization() {
+        ObdVehicleData.Battery battery = new ObdVehicleData.Battery();
+        byte[] cells = new byte[36];
+        cells[4]=(byte)193; cells[5]=(byte)194; cells[6]=(byte)255;
+        battery.add("220102",batteryFrames(2,cells));
+        assertEquals("2개",battery.cellSummary().get("수신 셀 수"));
+        assertEquals("3.86 V",battery.cellSummary().get("수신 셀 최저 전압"));
+        assertEquals("3.88 V",battery.cellSummary().get("수신 셀 최고 전압"));
+        assertEquals("3.87 V",battery.cellSummary().get("수신 셀 평균 전압"));
+        assertEquals("20 mV",battery.cellSummary().get("수신 셀 전압 차이"));
+        assertTrue(battery.cellSummary().get("셀 전압 보고 단위").startsWith("20 mV"));
+        cells[5]=0;
+        battery.add("220102",batteryFrames(2,cells));
+        assertEquals(1,battery.cells.size()); // A repeat block must not retain a now-missing cell.
+        assertNull(battery.cells.get(2));
+        assertEquals("0 mV",battery.cellSummary().get("수신 셀 전압 차이"));
+    }
+
+    @Test public void shortCellBlockAndUnsupportedDidCannotInventCells() {
+        ObdVehicleData.Battery battery = new ObdVehicleData.Battery();
+        byte[] shortBlock = new byte[35];
+        Arrays.fill(shortBlock,(byte)193);
+        battery.add("220102",batteryFrames(2,shortBlock));
+        battery.add("22010D",batteryFrames(13,new byte[36]));
+        assertTrue(battery.cells.isEmpty());
+        assertTrue(battery.cellSummary().isEmpty());
+    }
+
+    @Test public void newlyDecodedDistancePidsKeepFullUnsignedRangeAndRequireCorrectLength() {
+        assertEquals("65535 km",ObdVehicleData.STANDARD.get(0x21).value(new byte[]{-1,-1}));
+        assertEquals("255 회",ObdVehicleData.STANDARD.get(0x30).value(new byte[]{-1}));
+        assertEquals("256 km",ObdVehicleData.STANDARD.get(0x31).value(new byte[]{1,0}));
+        assertNull(ObdVehicleData.STANDARD.get(0x31).value(new byte[]{0}));
+    }
+
     private static String batteryFrames(int did, byte[] data) {
         byte[] payload = new byte[data.length + 3];
         payload[0] = 0x62;

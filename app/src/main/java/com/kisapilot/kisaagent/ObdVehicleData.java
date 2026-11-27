@@ -37,6 +37,10 @@ final class ObdVehicleData {
         pids.put(0x0F, new Signal("흡기 온도", "°C", 1, 1, -40));
         pids.put(0x11, new Signal("스로틀 위치", "%", 1, 100.0 / 255));
         pids.put(0x1F, new Signal("시동 후 경과 시간", "s", 2, 1));
+        // Definitions: https://github.com/OBDb/SAEJ1979/blob/main/signalsets/v3/default.json
+        pids.put(0x21, new Signal("고장 표시등 점등 중 주행거리", "km", 2, 1));
+        pids.put(0x30, new Signal("고장 코드 삭제 후 웜업 횟수", "회", 1, 1));
+        pids.put(0x31, new Signal("고장 코드 삭제 후 주행거리", "km", 2, 1));
         pids.put(0x2F, new Signal("연료 잔량", "%", 1, 100.0 / 255));
         pids.put(0x42, new Signal("제어기 전압", "V", 2, 0.001));
         pids.put(0x46, new Signal("외기 온도", "°C", 1, 1, -40));
@@ -110,10 +114,14 @@ final class ObdVehicleData {
         final Map<String, String> temperatures = new LinkedHashMap<>();
         final Map<String, String> totals = new LinkedHashMap<>();
         final Map<Integer, String> cells = new TreeMap<>();
+        private final Map<Integer, Integer> cellSteps = new TreeMap<>();
+        final Map<String, String> status = new LinkedHashMap<>();
 
         // BMS DID offsets start after the positive service and two DID bytes.
-        // Reference: https://pelican.clutch.engineering/cars/hyundai/ioniq-5/parameters
+        // Reference: https://github.com/OBDb/Hyundai-IONIQ-5/blob/main/signalsets/v3/default.json
         void add(String command, String raw) {
+            if (!BATTERY_MAIN.equals(command) && !BATTERY_EXTRA.equals(command)
+                    && !CELL_BLOCKS.containsKey(command)) return;
             int did = Integer.parseInt(command.substring(4), 16);
             byte[] data = replies(raw, 0x62, 1, did).get("7EC");
             if (data == null) return;
@@ -130,6 +138,22 @@ final class ObdVehicleData {
             measurement(pack, "BMS 충전율", "%", data, 4, 1, 0.5, 0, 100);
             if (data.length >= 12) put(pack, "배터리 팩 전류", (short) unsigned(data, 10, 2) / 10.0, "A");
             measurement(pack, "배터리 팩 전압", "V", data, 12, 2, 0.1, 0, 1000);
+            if (data.length >= 14 && unsigned(data, 12, 2) != 0xFFFF) {
+                put(pack, "배터리 팩 전력 (전압×전류)",
+                        unsigned(data, 12, 2) * 0.1 * (short) unsigned(data, 10, 2) / 10000.0, "kW");
+            }
+            if (data.length > 9 && (data[9] & 255) != 255) {
+                int flags = data[9] & 255;
+                status.put("BMS 충전 상태", (flags & 0x80) != 0 ? "충전 중" : "충전 중 아님");
+                status.put("급속 충전 포트 신호", (flags & 0x40) != 0 ? "켜짐" : "꺼짐");
+                status.put("완속 충전 포트 신호", (flags & 0x20) != 0 ? "켜짐" : "꺼짐");
+                status.put("BMS 메인 릴레이 신호", (flags & 1) != 0 ? "켜짐" : "꺼짐");
+            }
+            measurement(status, "배터리 팬 상태 코드", "", data, 27, 1, 1, 0, 9);
+            measurement(status, "배터리 팬 피드백", "Hz", data, 28, 1, 1, 0, 120);
+            if (data.length > 22 && (data[22] & 255) != 255) {
+                put(temperatures, "배터리 유입 온도", (data[22] & 255) - 40, "°C");
+            }
             temperature("최고 온도", data, 14);
             temperature("최저 온도", data, 15);
             for (int i = 0; i < 5; i++) temperature("온도 센서 " + (i + 1), data, 16 + i);
@@ -156,11 +180,34 @@ final class ObdVehicleData {
         }
 
         private void decodeCells(int firstCell, byte[] data) {
-            // The first four bytes precede the values in each 32-cell block.
-            for (int i = 0; i < 32 && i + 4 < data.length; i++) {
+            // Each DID contains a four-byte bitmap followed by exactly 32 cell values.
+            // Reject a short block rather than presenting a partial block as complete.
+            if (data.length != 36) return;
+            for (int i = 0; i < 32; i++) {
+                int number = firstCell + i;
+                cells.remove(number);
+                cellSteps.remove(number);
                 int raw = data[i + 4] & 255;
-                if (raw != 0 && raw != 255) cells.put(firstCell + i, valueWithUnit(raw / 50.0, "V"));
+                if (raw != 0 && raw != 255) {
+                    cells.put(number, valueWithUnit(raw / 50.0, "V"));
+                    cellSteps.put(number, raw);
+                }
             }
+        }
+
+        Map<String, String> cellSummary() {
+            Map<String, String> summary = new LinkedHashMap<>();
+            if (cellSteps.isEmpty()) return summary;
+            int min = Collections.min(cellSteps.values()), max = Collections.max(cellSteps.values());
+            int sum = 0;
+            for (int value : cellSteps.values()) sum += value;
+            summary.put("수신 셀 수", cellSteps.size() + "개");
+            put(summary, "수신 셀 최저 전압", min / 50.0, "V");
+            put(summary, "수신 셀 최고 전압", max / 50.0, "V");
+            put(summary, "수신 셀 평균 전압", sum / (50.0 * cellSteps.size()), "V");
+            put(summary, "수신 셀 전압 차이", (max - min) * 20, "mV");
+            summary.put("셀 전압 보고 단위", "20 mV (표시 차이 0도 실제 전압이 완전히 같다는 뜻은 아님)");
+            return summary;
         }
 
         private void temperature(String label, byte[] data, int index) {
